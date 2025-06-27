@@ -1,89 +1,111 @@
 -- Compiled with roblox-ts v3.0.0
--- eslint-disable-next-line @typescript-eslint/no-explicit-any
-local function withUpdateId(fn)
-	local cache = nil
-	local lastUpdateId = -1
-	return function(id, ...)
-		local args = { ... }
-		if lastUpdateId ~= id then
-			cache = nil
-			lastUpdateId = id
-		end
-		if cache == nil then
-			cache = fn(unpack(args))
-		end
-		return cache
-	end
-end
 local function createUseEvent(_param)
 	local indicateUpdate = _param.indicateUpdate
 	local queues = {}
 	local watchedEvents = {}
-	local hook = function(event)
+	local caches = {}
+	local lastUpdateId = -1
+	return function(updateId, event)
+		if lastUpdateId ~= updateId then
+			table.clear(caches)
+			lastUpdateId = updateId
+		end
 		local _event = event
-		if not (watchedEvents[_event] ~= nil) then
-			local _event_1 = event
-			watchedEvents[_event_1] = true
+		local cache = caches[_event]
+		if cache ~= nil then
+			return cache
+		end
+		local _event_1 = event
+		if not (watchedEvents[_event_1] ~= nil) then
 			local _event_2 = event
-			queues[_event_2] = {}
+			watchedEvents[_event_2] = true
+			local _event_3 = event
+			queues[_event_3] = {}
 			event:Connect(function(...)
 				local args = { ... }
-				local _event_3 = event
-				local _exp = queues[_event_3]
+				local _event_4 = event
+				local _exp = queues[_event_4]
 				local _args = args
 				table.insert(_exp, _args)
 				indicateUpdate()
 			end)
+			local _event_4 = event
+			caches[_event_4] = {}
 			return {}
 		end
-		local _event_1 = event
-		local queue = queues[_event_1]
+		local _event_2 = event
+		local queue = queues[_event_2]
 		if not (#queue == 0) then
-			local _event_2 = event
-			queues[_event_2] = {}
+			local _event_3 = event
+			queues[_event_3] = {}
 		end
+		local _event_3 = event
+		caches[_event_3] = queue
 		return queue
 	end
-	return withUpdateId(hook)
 end
 local function createUseEventImmediately(_param)
 	local indicateUpdate = _param.indicateUpdate
 	local queues = {}
 	local watchedEvents = {}
-	local hook = function(event, callback)
+	local caches = {}
+	local lastUpdateId = -1
+	return function(updateId, event, callback)
+		if lastUpdateId ~= updateId then
+			table.clear(caches)
+			lastUpdateId = updateId
+		end
 		local _event = event
-		if not (watchedEvents[_event] ~= nil) then
-			local _event_1 = event
-			watchedEvents[_event_1] = true
+		local cache = caches[_event]
+		if cache ~= nil then
+			return cache
+		end
+		local _event_1 = event
+		if not (watchedEvents[_event_1] ~= nil) then
 			local _event_2 = event
-			queues[_event_2] = {}
+			watchedEvents[_event_2] = true
+			local _event_3 = event
+			queues[_event_3] = {}
 			event:Connect(function(...)
 				local args = { ... }
-				local _event_3 = event
-				local _exp = queues[_event_3]
+				local _event_4 = event
+				local _exp = queues[_event_4]
 				local _arg0 = callback(unpack(args))
 				table.insert(_exp, _arg0)
 				indicateUpdate()
 			end)
+			local _event_4 = event
+			caches[_event_4] = {}
 			return {}
 		end
-		local _event_1 = event
-		local queue = queues[_event_1]
+		local _event_2 = event
+		local queue = queues[_event_2]
 		if not (#queue == 0) then
-			local _event_2 = event
-			queues[_event_2] = {}
+			local _event_3 = event
+			queues[_event_3] = {}
 		end
+		local _event_3 = event
+		caches[_event_3] = queue
 		return queue
 	end
-	return withUpdateId(hook)
 end
 local function createUseComponentChange(_param)
 	local subscribeComponent = _param.subscribeComponent
 	local update = _param.indicateUpdate
 	local queues = {}
 	local watchedStringifiedComponents = {}
-	local hook = function(component)
+	local caches = {}
+	local lastUpdateId = -1
+	return function(updateId, component)
+		if lastUpdateId ~= updateId then
+			table.clear(caches)
+			lastUpdateId = updateId
+		end
 		local stringifiedComponent = tostring(component)
+		local cache = caches[stringifiedComponent]
+		if cache ~= nil then
+			return cache
+		end
 		if not (watchedStringifiedComponents[stringifiedComponent] ~= nil) then
 			watchedStringifiedComponents[stringifiedComponent] = true
 			queues[stringifiedComponent] = {}
@@ -97,15 +119,16 @@ local function createUseComponentChange(_param)
 				table.insert(_exp, _arg0)
 				update()
 			end)
+			caches[stringifiedComponent] = {}
 			return {}
 		end
 		local queue = queues[stringifiedComponent]
 		if not (#queue == 0) then
 			queues[stringifiedComponent] = {}
 		end
+		caches[stringifiedComponent] = queue
 		return queue
 	end
-	return withUpdateId(hook)
 end
 local function equalsDependencies(a, b)
 	if a == b then
@@ -135,27 +158,43 @@ end
 local function createUseAsync(_param)
 	local indicateUpdate = _param.indicateUpdate
 	local storage = {}
-	local hook = function(asnycFactory, dependencies, discriminator)
+	local caches = {}
+	local lastUpdateId = -1
+	return function(updateId, asnycFactory, dependencies, discriminator)
+		if lastUpdateId ~= updateId then
+			table.clear(caches)
+			lastUpdateId = updateId
+		end
 		local _discriminator = discriminator
-		if not (storage[_discriminator] ~= nil) then
+		local cache = caches[_discriminator]
+		if cache ~= nil then
+			return cache
+		end
+		local _discriminator_1 = discriminator
+		if not (storage[_discriminator_1] ~= nil) then
 			local newResult = {
 				completed = false,
 				value = nil,
 			}
 			local thread = coroutine.create(executeThread)
 			coroutine.resume(thread, newResult, asnycFactory, indicateUpdate)
-			local _discriminator_1 = discriminator
+			local _discriminator_2 = discriminator
 			local _arg1 = {
 				lastDependencies = dependencies,
 				thread = thread,
 				result = newResult,
 			}
-			storage[_discriminator_1] = _arg1
+			storage[_discriminator_2] = _arg1
+			local _discriminator_3 = discriminator
+			caches[_discriminator_3] = newResult
 			return newResult
 		end
-		local _discriminator_1 = discriminator
-		local state = storage[_discriminator_1]
+		local _discriminator_2 = discriminator
+		local state = storage[_discriminator_2]
 		if equalsDependencies(state.lastDependencies, dependencies) then
+			local _discriminator_3 = discriminator
+			local _result = state.result
+			caches[_discriminator_3] = _result
 			return state.result
 		else
 			coroutine.yield(state.thread)
@@ -166,39 +205,56 @@ local function createUseAsync(_param)
 			}
 			local newThread = coroutine.create(executeThread)
 			coroutine.resume(newThread, newResult, asnycFactory, indicateUpdate)
-			local _discriminator_2 = discriminator
+			local _discriminator_3 = discriminator
 			local _arg1 = {
 				lastDependencies = dependencies,
 				thread = newThread,
 				result = newResult,
 			}
-			storage[_discriminator_2] = _arg1
+			storage[_discriminator_3] = _arg1
+			local _discriminator_4 = discriminator
+			caches[_discriminator_4] = newResult
 			return newResult
 		end
 	end
-	return withUpdateId(hook)
 end
 local function createUseImperative(_param)
 	local indicateUpdate = _param.indicateUpdate
 	local storage = {}
-	local hook = function(dirtyFactory, dependencies, discriminator)
+	local caches = {}
+	local lastUpdateId = -1
+	return function(updateId, dirtyFactory, dependencies, discriminator)
+		if lastUpdateId ~= updateId then
+			table.clear(caches)
+			lastUpdateId = updateId
+		end
 		local _discriminator = discriminator
-		if not (storage[_discriminator] ~= nil) then
+		local cache = caches[_discriminator]
+		if cache ~= nil then
+			return cache
+		end
+		local _discriminator_1 = discriminator
+		if not (storage[_discriminator_1] ~= nil) then
 			local _binding = dirtyFactory(indicateUpdate)
 			local value = _binding.value
 			local cleanup = _binding.cleanup
-			local _discriminator_1 = discriminator
+			local _discriminator_2 = discriminator
 			local _arg1 = {
 				cache = value,
 				cleanup = cleanup,
 				lastDependencies = dependencies,
 			}
-			storage[_discriminator_1] = _arg1
+			storage[_discriminator_2] = _arg1
+			local _discriminator_3 = discriminator
+			caches[_discriminator_3] = value
 			return value
 		end
-		local _discriminator_1 = discriminator
-		local state = storage[_discriminator_1]
+		local _discriminator_2 = discriminator
+		local state = storage[_discriminator_2]
 		if equalsDependencies(state.lastDependencies, dependencies) then
+			local _discriminator_3 = discriminator
+			local _cache = state.cache
+			caches[_discriminator_3] = _cache
 			return state.cache
 		else
 			if state.cleanup ~= nil then
@@ -207,66 +263,100 @@ local function createUseImperative(_param)
 			local _binding = dirtyFactory(indicateUpdate)
 			local value = _binding.value
 			local cleanup = _binding.cleanup
-			local _discriminator_2 = discriminator
+			local _discriminator_3 = discriminator
 			local _arg1 = {
 				cache = value,
 				cleanup = cleanup,
 				lastDependencies = dependencies,
 			}
-			storage[_discriminator_2] = _arg1
+			storage[_discriminator_3] = _arg1
+			local _discriminator_4 = discriminator
+			caches[_discriminator_4] = value
 			return value
 		end
 	end
-	return withUpdateId(hook)
 end
 local function createUseChange()
 	local dependenciesStorage = {}
-	local hook = function(dependencies, discriminator)
+	local caches = {}
+	local lastUpdateId = -1
+	return function(updateId, dependencies, discriminator)
+		if lastUpdateId ~= updateId then
+			table.clear(caches)
+			lastUpdateId = updateId
+		end
 		local _discriminator = discriminator
-		if not (dependenciesStorage[_discriminator] ~= nil) then
-			local _discriminator_1 = discriminator
-			local _dependencies = dependencies
-			dependenciesStorage[_discriminator_1] = _dependencies
-			return true
+		local cache = caches[_discriminator]
+		if cache ~= nil then
+			return cache
 		end
 		local _discriminator_1 = discriminator
-		local lastDependencies = dependenciesStorage[_discriminator_1]
-		if equalsDependencies(lastDependencies, dependencies) then
-			return false
-		else
+		if not (dependenciesStorage[_discriminator_1] ~= nil) then
 			local _discriminator_2 = discriminator
 			local _dependencies = dependencies
 			dependenciesStorage[_discriminator_2] = _dependencies
+			local _discriminator_3 = discriminator
+			caches[_discriminator_3] = true
+			return true
+		end
+		local _discriminator_2 = discriminator
+		local lastDependencies = dependenciesStorage[_discriminator_2]
+		if equalsDependencies(lastDependencies, dependencies) then
+			local _discriminator_3 = discriminator
+			caches[_discriminator_3] = false
+			return false
+		else
+			local _discriminator_3 = discriminator
+			local _dependencies = dependencies
+			dependenciesStorage[_discriminator_3] = _dependencies
+			local _discriminator_4 = discriminator
+			caches[_discriminator_4] = true
 			return true
 		end
 	end
-	return withUpdateId(hook)
 end
 local function createUseInterval(_param)
 	local indicateUpdate = _param.indicateUpdate
 	local nextClocks = {}
-	local hook = function(seconds, trueOnInit, discriminator)
+	local caches = {}
+	local lastUpdateId = -1
+	return function(updateId, seconds, trueOnInit, discriminator)
+		if lastUpdateId ~= updateId then
+			table.clear(caches)
+			lastUpdateId = updateId
+		end
 		local _discriminator = discriminator
-		if not (nextClocks[_discriminator] ~= nil) then
-			local _discriminator_1 = discriminator
-			local _arg1 = os.clock() + seconds
-			nextClocks[_discriminator_1] = _arg1
-			task.delay(seconds, indicateUpdate)
-			return trueOnInit
+		local cache = caches[_discriminator]
+		if cache ~= nil then
+			return cache
 		end
 		local _discriminator_1 = discriminator
-		local nextClock = nextClocks[_discriminator_1]
-		if nextClock < os.clock() then
-			return false
-		else
+		if not (nextClocks[_discriminator_1] ~= nil) then
 			local _discriminator_2 = discriminator
 			local _arg1 = os.clock() + seconds
 			nextClocks[_discriminator_2] = _arg1
 			task.delay(seconds, indicateUpdate)
+			local _discriminator_3 = discriminator
+			local _trueOnInit = trueOnInit
+			caches[_discriminator_3] = _trueOnInit
+			return trueOnInit
+		end
+		local _discriminator_2 = discriminator
+		local nextClock = nextClocks[_discriminator_2]
+		if nextClock < os.clock() then
+			local _discriminator_3 = discriminator
+			caches[_discriminator_3] = false
+			return false
+		else
+			local _discriminator_3 = discriminator
+			local _arg1 = os.clock() + seconds
+			nextClocks[_discriminator_3] = _arg1
+			task.delay(seconds, indicateUpdate)
+			local _discriminator_4 = discriminator
+			caches[_discriminator_4] = true
 			return true
 		end
 	end
-	return withUpdateId(hook)
 end
 local function createHooks(props)
 	return {

@@ -7,60 +7,50 @@ type AsyncResult<T = unknown> = {
 };
 export type Discriminator = Exclude<defined, number>;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type CovenantHook<T extends (...args: Array<any>) => defined> = (
-    updateId: number,
-    ...args: Parameters<T>
-) => ReturnType<T>;
-
 export interface CovenantHooks {
-    useEvent: CovenantHook<
-        <T extends Array<unknown>>(
-            event: RBXScriptSignal<(...args: T) => void>,
-        ) => T[]
-    >;
-    useEventImmediately: CovenantHook<
-        <T extends Array<unknown>, TReturn extends defined>(
-            event: RBXScriptSignal<(...args: T) => void>,
-            callback: (...args: T) => TReturn,
-        ) => TReturn[]
-    >;
-    useComponentChange: CovenantHook<
-        <T extends defined>(
-            component: Entity<T>,
-        ) => {
-            entity: Entity;
-            state: T | undefined;
-            previousState: T | undefined;
-        }[]
-    >;
-    useAsync: CovenantHook<
-        <T>(
-            asnycFactory: () => T,
-            dependencies: unknown[],
-            discriminator: Discriminator,
-        ) => AsyncResult<T>
-    >;
-    useImperative: CovenantHook<
-        <T extends defined>(
-            dirtyFactory: (indicateUpdate: () => void) => {
-                value: T;
-                cleanup?: () => void;
-            },
-            dependencies: unknown[],
-            discriminator: Discriminator,
-        ) => T
-    >;
-    useChange: CovenantHook<
-        (dependencies: unknown[], discriminator: Discriminator) => boolean
-    >;
-    useInterval: CovenantHook<
-        (
-            seconds: number,
-            trueOnInit: boolean,
-            discriminator: Discriminator,
-        ) => boolean
-    >;
+    useEvent: <T extends Array<unknown>>(
+        updateId: number,
+        event: RBXScriptSignal<(...args: T) => void>,
+    ) => T[];
+    useEventImmediately: <T extends Array<unknown>, TReturn extends defined>(
+        updateId: number,
+        event: RBXScriptSignal<(...args: T) => void>,
+        callback: (...args: T) => TReturn,
+    ) => TReturn[];
+    useComponentChange: <T extends defined>(
+        updateId: number,
+        component: Entity<T>,
+    ) => {
+        entity: Entity;
+        state: T | undefined;
+        previousState: T | undefined;
+    }[];
+    useAsync: <T>(
+        updateId: number,
+        asnycFactory: () => T,
+        dependencies: unknown[],
+        discriminator: Discriminator,
+    ) => AsyncResult<T>;
+    useImperative: <T extends defined>(
+        updateId: number,
+        dirtyFactory: (indicateUpdate: () => void) => {
+            value: T;
+            cleanup?: () => void;
+        },
+        dependencies: unknown[],
+        discriminator: Discriminator,
+    ) => T;
+    useChange: (
+        updateId: number,
+        dependencies: unknown[],
+        discriminator: Discriminator,
+    ) => boolean;
+    useInterval: (
+        updateId: number,
+        seconds: number,
+        trueOnInit: boolean,
+        discriminator: Discriminator,
+    ) => boolean;
 }
 
 interface CovenantHooksProps {
@@ -75,31 +65,25 @@ interface CovenantHooksProps {
     ) => void;
 }
 
-function withUpdateId<TParams extends Array<unknown>, TReturn extends defined>(
-    fn: (...args: TParams) => TReturn,
-): (id: number, ...args: TParams) => TReturn {
-    let cache: TReturn | undefined = undefined;
-    let lastUpdateId = -1;
-    return (id: number, ...args: TParams) => {
-        if (lastUpdateId !== id) {
-            cache = undefined;
-            lastUpdateId = id;
-        }
-        if (cache === undefined) {
-            cache = fn(...args);
-        }
-        return cache;
-    };
-}
-
 function createUseEvent({
     indicateUpdate,
 }: CovenantHooksProps): CovenantHooks["useEvent"] {
     const queues: Map<RBXScriptSignal, defined[]> = new Map();
     const watchedEvents: Set<RBXScriptSignal> = new Set();
-    const hook = <T extends Array<unknown>>(
+    const caches: Map<RBXScriptSignal, defined> = new Map();
+    let lastUpdateId = -1;
+    return function <T extends Array<unknown>>(
+        updateId: number,
         event: RBXScriptSignal<(...args: T) => void>,
-    ): T[] => {
+    ): T[] {
+        if (lastUpdateId !== updateId) {
+            caches.clear();
+            lastUpdateId = updateId;
+        }
+        const cache = caches.get(event);
+        if (cache !== undefined) {
+            return cache as T[];
+        }
         if (!watchedEvents.has(event)) {
             watchedEvents.add(event);
             queues.set(event, []);
@@ -107,15 +91,16 @@ function createUseEvent({
                 queues.get(event)!.push(args);
                 indicateUpdate();
             });
+            caches.set(event, []);
             return [];
         }
         const queue = queues.get(event)!;
         if (!queue.isEmpty()) {
             queues.set(event, []);
         }
+        caches.set(event, queue);
         return queue as T[];
     };
-    return withUpdateId(hook);
 }
 
 function createUseEventImmediately({
@@ -123,10 +108,21 @@ function createUseEventImmediately({
 }: CovenantHooksProps): CovenantHooks["useEventImmediately"] {
     const queues: Map<RBXScriptSignal, defined[]> = new Map();
     const watchedEvents: Set<RBXScriptSignal> = new Set();
-    const hook = <T extends Array<unknown>, TReturn extends defined>(
+    const caches: Map<RBXScriptSignal, defined> = new Map();
+    let lastUpdateId = -1;
+    return function <T extends Array<unknown>, TReturn extends defined>(
+        updateId: number,
         event: RBXScriptSignal<(...args: T) => void>,
         callback: (...args: T) => TReturn,
-    ): TReturn[] => {
+    ): TReturn[] {
+        if (lastUpdateId !== updateId) {
+            caches.clear();
+            lastUpdateId = updateId;
+        }
+        const cache = caches.get(event);
+        if (cache !== undefined) {
+            return cache as TReturn[];
+        }
         if (!watchedEvents.has(event)) {
             watchedEvents.add(event);
             queues.set(event, []);
@@ -134,15 +130,16 @@ function createUseEventImmediately({
                 queues.get(event)!.push(callback(...args));
                 indicateUpdate();
             });
+            caches.set(event, []);
             return [];
         }
         const queue = queues.get(event)!;
         if (!queue.isEmpty()) {
             queues.set(event, []);
         }
+        caches.set(event, queue);
         return queue as TReturn[];
     };
-    return withUpdateId(hook);
 }
 
 function createUseComponentChange({
@@ -154,14 +151,29 @@ function createUseComponentChange({
         { entity: Entity; state: unknown; previousState: unknown }[]
     > = new Map();
     const watchedStringifiedComponents: Set<string> = new Set();
-    const hook = <T extends defined>(
+    const caches: Map<string, defined> = new Map();
+    let lastUpdateId = -1;
+    return function <T extends defined>(
+        updateId: number,
         component: Entity<T>,
     ): {
         entity: Entity;
         state: T | undefined;
         previousState: T | undefined;
-    }[] => {
+    }[] {
+        if (lastUpdateId !== updateId) {
+            caches.clear();
+            lastUpdateId = updateId;
+        }
         const stringifiedComponent = tostring(component);
+        const cache = caches.get(stringifiedComponent);
+        if (cache !== undefined) {
+            return cache as {
+                entity: Entity;
+                state: T | undefined;
+                previousState: T | undefined;
+            }[];
+        }
         if (!watchedStringifiedComponents.has(stringifiedComponent)) {
             watchedStringifiedComponents.add(stringifiedComponent);
             queues.set(stringifiedComponent, []);
@@ -171,19 +183,20 @@ function createUseComponentChange({
                     .push({ entity, state, previousState });
                 update();
             });
+            caches.set(stringifiedComponent, []);
             return [];
         }
         const queue = queues.get(stringifiedComponent)!;
         if (!queue.isEmpty()) {
             queues.set(stringifiedComponent, []);
         }
+        caches.set(stringifiedComponent, queue);
         return queue as {
             entity: Entity;
             state: T | undefined;
             previousState: T | undefined;
         }[];
     };
-    return withUpdateId(hook);
 }
 
 function equalsDependencies(a: unknown[], b: unknown[]) {
@@ -224,11 +237,22 @@ function createUseAsync({
             result: AsyncResult;
         }
     > = new Map();
-    const hook = <T>(
+    const caches: Map<Discriminator, defined> = new Map();
+    let lastUpdateId = -1;
+    return function <T>(
+        updateId: number,
         asnycFactory: () => T,
         dependencies: unknown[],
         discriminator: Discriminator,
-    ): AsyncResult<T> => {
+    ): AsyncResult<T> {
+        if (lastUpdateId !== updateId) {
+            caches.clear();
+            lastUpdateId = updateId;
+        }
+        const cache = caches.get(discriminator);
+        if (cache !== undefined) {
+            return cache as AsyncResult<T>;
+        }
         if (!storage.has(discriminator)) {
             const newResult: AsyncResult = {
                 completed: false,
@@ -241,10 +265,12 @@ function createUseAsync({
                 thread,
                 result: newResult,
             });
+            caches.set(discriminator, newResult);
             return newResult as AsyncResult<T>;
         }
         const state = storage.get(discriminator)!;
         if (equalsDependencies(state.lastDependencies, dependencies)) {
+            caches.set(discriminator, state.result);
             return state.result as AsyncResult<T>;
         } else {
             coroutine.yield(state.thread);
@@ -265,10 +291,10 @@ function createUseAsync({
                 thread: newThread,
                 result: newResult,
             });
+            caches.set(discriminator, newResult);
             return newResult as AsyncResult<T>;
         }
     };
-    return withUpdateId(hook);
 }
 
 function createUseImperative({
@@ -276,16 +302,27 @@ function createUseImperative({
 }: CovenantHooksProps): CovenantHooks["useImperative"] {
     const storage: Map<
         Discriminator,
-        { cache: unknown; cleanup?: () => void; lastDependencies: unknown[] }
+        { cache: defined; cleanup?: () => void; lastDependencies: unknown[] }
     > = new Map();
-    const hook = <T extends defined>(
+    const caches: Map<Discriminator, defined> = new Map();
+    let lastUpdateId = -1;
+    return function <T extends defined>(
+        updateId: number,
         dirtyFactory: (indicateUpdate: () => void) => {
             value: T;
             cleanup?: () => void;
         },
         dependencies: unknown[],
         discriminator: Discriminator,
-    ): T => {
+    ): T {
+        if (lastUpdateId !== updateId) {
+            caches.clear();
+            lastUpdateId = updateId;
+        }
+        const cache = caches.get(discriminator);
+        if (cache !== undefined) {
+            return cache as T;
+        }
         if (!storage.has(discriminator)) {
             const { value, cleanup } = dirtyFactory(indicateUpdate);
             storage.set(discriminator, {
@@ -293,10 +330,12 @@ function createUseImperative({
                 cleanup,
                 lastDependencies: dependencies,
             });
+            caches.set(discriminator, value);
             return value;
         }
         const state = storage.get(discriminator)!;
         if (equalsDependencies(state.lastDependencies, dependencies)) {
+            caches.set(discriminator, state.cache);
             return state.cache as T;
         } else {
             if (state.cleanup !== undefined) state.cleanup();
@@ -306,57 +345,83 @@ function createUseImperative({
                 cleanup,
                 lastDependencies: dependencies,
             });
+            caches.set(discriminator, value);
             return value;
         }
     };
-    return withUpdateId(hook);
 }
 
 function createUseChange(): CovenantHooks["useChange"] {
     const dependenciesStorage: Map<Discriminator, unknown[]> = new Map();
-    const hook = (
+    const caches: Map<Discriminator, defined> = new Map();
+    let lastUpdateId = -1;
+    return function (
+        updateId: number,
         dependencies: unknown[],
         discriminator: Discriminator,
-    ): boolean => {
+    ): boolean {
+        if (lastUpdateId !== updateId) {
+            caches.clear();
+            lastUpdateId = updateId;
+        }
+        const cache = caches.get(discriminator);
+        if (cache !== undefined) {
+            return cache as boolean;
+        }
         if (!dependenciesStorage.has(discriminator)) {
             dependenciesStorage.set(discriminator, dependencies);
+            caches.set(discriminator, true);
             return true;
         }
         const lastDependencies = dependenciesStorage.get(discriminator)!;
         if (equalsDependencies(lastDependencies, dependencies)) {
+            caches.set(discriminator, false);
             return false;
         } else {
             dependenciesStorage.set(discriminator, dependencies);
+            caches.set(discriminator, true);
             return true;
         }
     };
-    return withUpdateId(hook);
 }
 
 function createUseInterval({
     indicateUpdate,
 }: CovenantHooksProps): CovenantHooks["useInterval"] {
     const nextClocks: Map<Discriminator, number> = new Map();
-    const hook = (
+    const caches: Map<Discriminator, defined> = new Map();
+    let lastUpdateId = -1;
+    return function (
+        updateId: number,
         seconds: number,
         trueOnInit: boolean,
         discriminator: Discriminator,
-    ): boolean => {
+    ): boolean {
+        if (lastUpdateId !== updateId) {
+            caches.clear();
+            lastUpdateId = updateId;
+        }
+        const cache = caches.get(discriminator);
+        if (cache !== undefined) {
+            return cache as boolean;
+        }
         if (!nextClocks.has(discriminator)) {
             nextClocks.set(discriminator, os.clock() + seconds);
             task.delay(seconds, indicateUpdate);
+            caches.set(discriminator, trueOnInit);
             return trueOnInit;
         }
         const nextClock = nextClocks.get(discriminator)!;
         if (nextClock < os.clock()) {
+            caches.set(discriminator, false);
             return false;
         } else {
             nextClocks.set(discriminator, os.clock() + seconds);
             task.delay(seconds, indicateUpdate);
+            caches.set(discriminator, true);
             return true;
         }
     };
-    return withUpdateId(hook);
 }
 
 export function createHooks(props: CovenantHooksProps): CovenantHooks {

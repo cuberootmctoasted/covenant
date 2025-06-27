@@ -16,7 +16,7 @@ export declare class Covenant {
     private systems;
     private worldChangesForReplication;
     private worldChangesForPrediction;
-    private underivedStringifiedComponents;
+    private undefinedStringifiedComponents;
     private replicatedStringifiedComponents;
     private predictedStringifiedComponents;
     private started;
@@ -41,16 +41,16 @@ export declare class Covenant {
     subscribeComponent<T>(component: Entity<T>, subscriber: (entity: Entity, state: T | undefined, previousState: T | undefined) => void): () => void;
     private worldDelete;
     worldComponent<T extends defined>(): Entity<T>;
-    private checkComponentDerived;
+    private checkComponentDefined;
     private defineComponentNetworkBehavior;
-    deriveComponent<T extends defined>({ component, queriedComponents, recipe, replicated, predictionValidator, }: {
+    defineComputedComponent<T extends defined>({ component, queriedComponents, recipe, replicated, predictionValidator, }: {
         replicated: boolean;
         predictionValidator: ComponentPredictionValidator | false;
         component: Entity<T>;
         queriedComponents: Entity[][];
         recipe: (entity: Entity, lastState: T | undefined, updateId: number, hooks: CovenantHooks) => T | undefined;
     }): void;
-    deriveChildren<T extends defined>({ parentComponent, parentEntityTrackerComponent, childIdentityComponent, getIdentifier, queriedComponents, recipe, replicated, predictionValidator, }: {
+    defineManagedChildren<T extends defined>({ parentComponent, parentEntityTrackerComponent, childIdentityComponent, getIdentifier, queriedComponents, recipe, replicated, predictionValidator, }: {
         replicated: boolean;
         predictionValidator: ComponentPredictionValidator | false;
         parentComponent: Entity<ReadonlyArray<T>>;
@@ -60,12 +60,12 @@ export declare class Covenant {
         queriedComponents: Entity[][];
         recipe: (entity: Entity, lastChildrenStates: ReadonlyArray<T>, updateId: number, hooks: CovenantHooks) => ReadonlyArray<T>;
     }): void;
-    deriveRootEntity<T extends defined>({ identityComponent, recipe, replicated, }: {
+    defineEntitySource<T extends defined>({ identityComponent, recipe, replicated, }: {
         replicated: boolean;
         identityComponent: Entity<T>;
         recipe: (updateId: number, hooks: CovenantHooks) => {
-            statesToCreate: ReadonlyArray<T>;
-            entitiesToDelete: ReadonlyArray<Entity>;
+            statesToCreate?: ReadonlyArray<T>;
+            entitiesToDelete?: ReadonlyArray<Entity>;
         };
     }): void;
     private worldEntity;

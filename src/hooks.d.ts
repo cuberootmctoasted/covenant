@@ -5,22 +5,21 @@ type AsyncResult<T = unknown> = {
     errorMessage?: string;
 };
 export type Discriminator = Exclude<defined, number>;
-type CovenantHook<T extends (...args: Array<any>) => defined> = (updateId: number, ...args: Parameters<T>) => ReturnType<T>;
 export interface CovenantHooks {
-    useEvent: CovenantHook<(<T extends Array<unknown>>(event: RBXScriptSignal<(...args: T) => void>) => T[])>;
-    useEventImmediately: CovenantHook<(<T extends Array<unknown>, TReturn extends defined>(event: RBXScriptSignal<(...args: T) => void>, callback: (...args: T) => TReturn) => TReturn[])>;
-    useComponentChange: CovenantHook<(<T extends defined>(component: Entity<T>) => {
+    useEvent: <T extends Array<unknown>>(updateId: number, event: RBXScriptSignal<(...args: T) => void>) => T[];
+    useEventImmediately: <T extends Array<unknown>, TReturn extends defined>(updateId: number, event: RBXScriptSignal<(...args: T) => void>, callback: (...args: T) => TReturn) => TReturn[];
+    useComponentChange: <T extends defined>(updateId: number, component: Entity<T>) => {
         entity: Entity;
         state: T | undefined;
         previousState: T | undefined;
-    }[])>;
-    useAsync: CovenantHook<(<T>(asnycFactory: () => T, dependencies: unknown[], discriminator: Discriminator) => AsyncResult<T>)>;
-    useImperative: CovenantHook<(<T extends defined>(dirtyFactory: (indicateUpdate: () => void) => {
+    }[];
+    useAsync: <T>(updateId: number, asnycFactory: () => T, dependencies: unknown[], discriminator: Discriminator) => AsyncResult<T>;
+    useImperative: <T extends defined>(updateId: number, dirtyFactory: (indicateUpdate: () => void) => {
         value: T;
         cleanup?: () => void;
-    }, dependencies: unknown[], discriminator: Discriminator) => T)>;
-    useChange: CovenantHook<(dependencies: unknown[], discriminator: Discriminator) => boolean>;
-    useInterval: CovenantHook<(seconds: number, trueOnInit: boolean, discriminator: Discriminator) => boolean>;
+    }, dependencies: unknown[], discriminator: Discriminator) => T;
+    useChange: (updateId: number, dependencies: unknown[], discriminator: Discriminator) => boolean;
+    useInterval: (updateId: number, seconds: number, trueOnInit: boolean, discriminator: Discriminator) => boolean;
 }
 interface CovenantHooksProps {
     indicateUpdate: () => void;

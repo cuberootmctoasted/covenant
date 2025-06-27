@@ -71,7 +71,7 @@ export class Covenant {
     private worldChangesForReplication: WorldChangesForReplication = new Map();
     private worldChangesForPrediction: WorldChangesForPrediction = new Map();
 
-    private underivedStringifiedComponents: Set<string> = new Set();
+    private undefinedStringifiedComponents: Set<string> = new Set();
     private replicatedStringifiedComponents: Set<string> = new Set();
     private predictedStringifiedComponents: Set<string> = new Set();
 
@@ -266,8 +266,8 @@ export class Covenant {
     public start() {
         assert(!this.started, "Already started");
         assert(
-            this.underivedStringifiedComponents.isEmpty(),
-            `There are ${this.underivedStringifiedComponents.size()} components that are not derived`,
+            this.undefinedStringifiedComponents.isEmpty(),
+            `There are ${this.undefinedStringifiedComponents.size()} components that are not defined`,
         );
         this.started = true;
         this.systems.forEach((systemsOfEvent, event) =>
@@ -426,12 +426,12 @@ export class Covenant {
         return c;
     }
 
-    private checkComponentDerived(component: Entity) {
+    private checkComponentDefined(component: Entity) {
         assert(
-            this.underivedStringifiedComponents.has(tostring(component)),
-            `Component ${component} is already derived`,
+            this.undefinedStringifiedComponents.has(tostring(component)),
+            `Component ${component} is already defined`,
         );
-        this.underivedStringifiedComponents.delete(tostring(component));
+        this.undefinedStringifiedComponents.delete(tostring(component));
     }
 
     private defineComponentNetworkBehavior(
@@ -451,7 +451,7 @@ export class Covenant {
         }
     }
 
-    public deriveComponent<T extends defined>({
+    public defineComputedComponent<T extends defined>({
         component,
         queriedComponents,
         recipe,
@@ -469,7 +469,7 @@ export class Covenant {
             hooks: CovenantHooks,
         ) => T | undefined;
     }) {
-        this.checkComponentDerived(component);
+        this.checkComponentDefined(component);
 
         this.defineComponentNetworkBehavior(
             component,
@@ -548,7 +548,7 @@ export class Covenant {
         });
     }
 
-    public deriveChildren<T extends defined>({
+    public defineManagedChildren<T extends defined>({
         parentComponent,
         parentEntityTrackerComponent,
         childIdentityComponent,
@@ -572,9 +572,9 @@ export class Covenant {
             hooks: CovenantHooks,
         ) => ReadonlyArray<T>;
     }) {
-        this.checkComponentDerived(parentComponent);
-        this.checkComponentDerived(parentEntityTrackerComponent);
-        this.checkComponentDerived(childIdentityComponent);
+        this.checkComponentDefined(parentComponent);
+        this.checkComponentDefined(parentEntityTrackerComponent);
+        this.checkComponentDefined(childIdentityComponent);
 
         this.defineComponentNetworkBehavior(
             parentComponent,
@@ -717,7 +717,7 @@ export class Covenant {
         });
     }
 
-    public deriveRootEntity<T extends defined>({
+    public defineEntitySource<T extends defined>({
         identityComponent,
         recipe,
         replicated,
@@ -728,11 +728,11 @@ export class Covenant {
             updateId: number,
             hooks: CovenantHooks,
         ) => {
-            statesToCreate: ReadonlyArray<T>;
-            entitiesToDelete: ReadonlyArray<Entity>;
+            statesToCreate?: ReadonlyArray<T>;
+            entitiesToDelete?: ReadonlyArray<Entity>;
         };
     }) {
-        this.checkComponentDerived(identityComponent);
+        this.checkComponentDefined(identityComponent);
 
         this.defineComponentNetworkBehavior(
             identityComponent,
@@ -761,11 +761,11 @@ export class Covenant {
                 ++lastUpdateId,
                 hooks,
             );
-            statesToCreate.forEach((state) => {
+            statesToCreate?.forEach((state) => {
                 const entity = this.worldEntity();
                 this.worldSet(entity, identityComponent, state);
             });
-            entitiesToDelete.forEach((entity) => {
+            entitiesToDelete?.forEach((entity) => {
                 this.worldDelete(entity);
             });
         };

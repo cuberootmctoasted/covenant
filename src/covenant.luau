@@ -48,7 +48,7 @@ do
 		self.systems = {}
 		self.worldChangesForReplication = {}
 		self.worldChangesForPrediction = {}
-		self.underivedStringifiedComponents = {}
+		self.undefinedStringifiedComponents = {}
 		self.replicatedStringifiedComponents = {}
 		self.predictedStringifiedComponents = {}
 		self.started = false
@@ -235,14 +235,14 @@ do
 	function Covenant:start()
 		local _arg0 = not self.started
 		assert(_arg0, "Already started")
-		local _exp = next(self.underivedStringifiedComponents) == nil
+		local _exp = next(self.undefinedStringifiedComponents) == nil
 		-- ▼ ReadonlySet.size ▼
 		local _size = 0
-		for _ in self.underivedStringifiedComponents do
+		for _ in self.undefinedStringifiedComponents do
 			_size += 1
 		end
 		-- ▲ ReadonlySet.size ▲
-		local _arg1 = `There are {_size} components that are not derived`
+		local _arg1 = `There are {_size} components that are not defined`
 		assert(_exp, _arg1)
 		self.started = true
 		local _exp_1 = self.systems
@@ -439,15 +439,15 @@ do
 		local c = self._world:component()
 		return c
 	end
-	function Covenant:checkComponentDerived(component)
-		local _underivedStringifiedComponents = self.underivedStringifiedComponents
+	function Covenant:checkComponentDefined(component)
+		local _undefinedStringifiedComponents = self.undefinedStringifiedComponents
 		local _arg0 = tostring(component)
-		local _arg0_1 = _underivedStringifiedComponents[_arg0] ~= nil
-		local _arg1 = `Component {component} is already derived`
+		local _arg0_1 = _undefinedStringifiedComponents[_arg0] ~= nil
+		local _arg1 = `Component {component} is already defined`
 		assert(_arg0_1, _arg1)
-		local _underivedStringifiedComponents_1 = self.underivedStringifiedComponents
+		local _undefinedStringifiedComponents_1 = self.undefinedStringifiedComponents
 		local _arg0_2 = tostring(component)
-		_underivedStringifiedComponents_1[_arg0_2] = nil
+		_undefinedStringifiedComponents_1[_arg0_2] = nil
 	end
 	function Covenant:defineComponentNetworkBehavior(component, replicated, predictionValidator)
 		if replicated then
@@ -465,13 +465,13 @@ do
 			_stringifiedComponentValidators[_arg0_1] = _predictionValidator
 		end
 	end
-	function Covenant:deriveComponent(_param)
+	function Covenant:defineComputedComponent(_param)
 		local component = _param.component
 		local queriedComponents = _param.queriedComponents
 		local recipe = _param.recipe
 		local replicated = _param.replicated
 		local predictionValidator = _param.predictionValidator
-		self:checkComponentDerived(component)
+		self:checkComponentDefined(component)
 		self:defineComponentNetworkBehavior(component, replicated, predictionValidator)
 		local queryThisComponent = self:worldQuery(component):cached()
 		local willUpdate = true
@@ -581,7 +581,7 @@ do
 			updater()
 		end)
 	end
-	function Covenant:deriveChildren(_param)
+	function Covenant:defineManagedChildren(_param)
 		local parentComponent = _param.parentComponent
 		local parentEntityTrackerComponent = _param.parentEntityTrackerComponent
 		local childIdentityComponent = _param.childIdentityComponent
@@ -590,9 +590,9 @@ do
 		local recipe = _param.recipe
 		local replicated = _param.replicated
 		local predictionValidator = _param.predictionValidator
-		self:checkComponentDerived(parentComponent)
-		self:checkComponentDerived(parentEntityTrackerComponent)
-		self:checkComponentDerived(childIdentityComponent)
+		self:checkComponentDefined(parentComponent)
+		self:checkComponentDefined(parentEntityTrackerComponent)
+		self:checkComponentDefined(childIdentityComponent)
 		self:defineComponentNetworkBehavior(parentComponent, replicated, predictionValidator)
 		local queryParentComponent = self:worldQuery(parentComponent):cached()
 		local willUpdate = true
@@ -769,11 +769,11 @@ do
 			updater()
 		end)
 	end
-	function Covenant:deriveRootEntity(_param)
+	function Covenant:defineEntitySource(_param)
 		local identityComponent = _param.identityComponent
 		local recipe = _param.recipe
 		local replicated = _param.replicated
-		self:checkComponentDerived(identityComponent)
+		self:checkComponentDefined(identityComponent)
 		self:defineComponentNetworkBehavior(identityComponent, replicated, false)
 		local willUpdate = true
 		local function indicateUpdate()
@@ -791,23 +791,29 @@ do
 			local _binding = recipe(lastUpdateId, hooks)
 			local statesToCreate = _binding.statesToCreate
 			local entitiesToDelete = _binding.entitiesToDelete
-			-- ▼ ReadonlyArray.forEach ▼
-			local _callback = function(state)
-				local entity = self:worldEntity()
-				self:worldSet(entity, identityComponent, state)
+			local _result = statesToCreate
+			if _result ~= nil then
+				-- ▼ ReadonlyArray.forEach ▼
+				local _callback = function(state)
+					local entity = self:worldEntity()
+					self:worldSet(entity, identityComponent, state)
+				end
+				for _k, _v in _result do
+					_callback(_v, _k - 1, _result)
+				end
+				-- ▲ ReadonlyArray.forEach ▲
 			end
-			for _k, _v in statesToCreate do
-				_callback(_v, _k - 1, statesToCreate)
+			local _result_1 = entitiesToDelete
+			if _result_1 ~= nil then
+				-- ▼ ReadonlyArray.forEach ▼
+				local _callback = function(entity)
+					self:worldDelete(entity)
+				end
+				for _k, _v in _result_1 do
+					_callback(_v, _k - 1, _result_1)
+				end
+				-- ▲ ReadonlyArray.forEach ▲
 			end
-			-- ▲ ReadonlyArray.forEach ▲
-			-- ▼ ReadonlyArray.forEach ▼
-			local _callback_1 = function(entity)
-				self:worldDelete(entity)
-			end
-			for _k, _v in entitiesToDelete do
-				_callback_1(_v, _k - 1, entitiesToDelete)
-			end
-			-- ▲ ReadonlyArray.forEach ▲
 		end
 		self:schedule(RunService.Heartbeat, function()
 			if not willUpdate then
