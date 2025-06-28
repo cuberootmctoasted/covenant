@@ -1,91 +1,77 @@
 -- Compiled with roblox-ts v3.0.0
+local TS = _G[script]
+local _dataStructureWithEvents = TS.import(script, script.Parent, "dataStructureWithEvents")
+local EventMap = _dataStructureWithEvents.EventMap
+local EventSet = _dataStructureWithEvents.EventSet
 local function createUseEvent(_param)
 	local indicateUpdate = _param.indicateUpdate
-	local queues = {}
-	local watchedEvents = {}
-	local caches = {}
+	local queues = EventMap.new()
+	local watchedEvents = EventSet.new()
+	local caches = EventMap.new()
 	local lastUpdateId = -1
 	return function(updateId, event)
 		if lastUpdateId ~= updateId then
-			table.clear(caches)
+			caches:clear()
 			lastUpdateId = updateId
 		end
-		local _event = event
-		local cache = caches[_event]
+		local cache = caches:get(event)
 		if cache ~= nil then
 			return cache
 		end
-		local _event_1 = event
-		if not (watchedEvents[_event_1] ~= nil) then
-			local _event_2 = event
-			watchedEvents[_event_2] = true
-			local _event_3 = event
-			queues[_event_3] = {}
+		if not watchedEvents:has(event) then
+			watchedEvents:add(event)
+			queues:set(event, {})
 			event:Connect(function(...)
 				local args = { ... }
-				local _event_4 = event
-				local _exp = queues[_event_4]
+				local _exp = queues:get(event)
 				local _args = args
 				table.insert(_exp, _args)
 				indicateUpdate()
 			end)
-			local _event_4 = event
-			caches[_event_4] = {}
+			caches:set(event, {})
 			return {}
 		end
-		local _event_2 = event
-		local queue = queues[_event_2]
+		local queue = queues:get(event)
 		if not (#queue == 0) then
-			local _event_3 = event
-			queues[_event_3] = {}
+			queues:set(event, {})
 		end
-		local _event_3 = event
-		caches[_event_3] = queue
+		caches:set(event, queue)
 		return queue
 	end
 end
 local function createUseEventImmediately(_param)
 	local indicateUpdate = _param.indicateUpdate
-	local queues = {}
-	local watchedEvents = {}
-	local caches = {}
+	local queues = EventMap.new()
+	local watchedEvents = EventSet.new()
+	local caches = EventMap.new()
 	local lastUpdateId = -1
 	return function(updateId, event, callback)
 		if lastUpdateId ~= updateId then
-			table.clear(caches)
+			caches:clear()
 			lastUpdateId = updateId
 		end
-		local _event = event
-		local cache = caches[_event]
+		local cache = caches:get(event)
 		if cache ~= nil then
 			return cache
 		end
-		local _event_1 = event
-		if not (watchedEvents[_event_1] ~= nil) then
-			local _event_2 = event
-			watchedEvents[_event_2] = true
-			local _event_3 = event
-			queues[_event_3] = {}
+		if not watchedEvents:has(event) then
+			watchedEvents:add(event)
+			queues:set(event, {})
 			event:Connect(function(...)
 				local args = { ... }
-				local _event_4 = event
-				local _exp = queues[_event_4]
+				local _exp = queues:get(event)
 				local _arg0 = callback(unpack(args))
 				table.insert(_exp, _arg0)
 				indicateUpdate()
 			end)
-			local _event_4 = event
-			caches[_event_4] = {}
+			caches:set(event, {})
 			return {}
 		end
-		local _event_2 = event
-		local queue = queues[_event_2]
+		local queue = queues:get(event)
 		if not (#queue == 0) then
-			local _event_3 = event
-			queues[_event_3] = {}
+			queues:set(event, {})
 		end
-		local _event_3 = event
-		caches[_event_3] = queue
+		caches:set(event, queue)
 		return queue
 	end
 end
@@ -197,7 +183,6 @@ local function createUseAsync(_param)
 			caches[_discriminator_3] = _result
 			return state.result
 		else
-			coroutine.yield(state.thread)
 			coroutine.close(state.thread)
 			local newResult = {
 				completed = false,
@@ -343,7 +328,7 @@ local function createUseInterval(_param)
 		end
 		local _discriminator_2 = discriminator
 		local nextClock = nextClocks[_discriminator_2]
-		if nextClock < os.clock() then
+		if nextClock > os.clock() then
 			local _discriminator_3 = discriminator
 			caches[_discriminator_3] = false
 			return false

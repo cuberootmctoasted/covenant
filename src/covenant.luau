@@ -14,6 +14,7 @@ local Delete = _stringEnums.Delete
 local _helpers = TS.import(script, script.Parent, "helpers")
 local compareMaps = _helpers.compareMaps
 local turnArrayWithIdentifierToMap = _helpers.turnArrayWithIdentifierToMap
+local EventMap = TS.import(script, script.Parent, "dataStructureWithEvents").EventMap
 -- Map<Entity, Delete | Map<Component, state | Remove>>
 -- Map<Component, Map<Entity, state | Remove>>
 local function createWorldWithRange(minClientEntity, maxClientEntity)
@@ -45,7 +46,7 @@ do
 		local predictionSend = _param.predictionSend
 		local predictionConnect = _param.predictionConnect
 		self._world = createWorldWithRange(1000, 20000)
-		self.systems = {}
+		self.systems = EventMap.new()
 		self.worldChangesForReplication = {}
 		self.worldChangesForPrediction = {}
 		self.undefinedStringifiedComponents = {}
@@ -245,64 +246,48 @@ do
 		local _arg1 = `There are {_size} components that are not defined`
 		assert(_exp, _arg1)
 		self.started = true
-		local _exp_1 = self.systems
-		-- ▼ ReadonlyMap.forEach ▼
-		local _callback = function(systemsOfEvent, event)
+		self.systems:forEach(function(systemsOfEvent, event)
 			local _systems = self.systems
-			local _exp_2 = event
+			local _exp_1 = event
 			table.sort(systemsOfEvent, function(a, b)
 				return a.priority < b.priority
 			end)
-			local _systemsOfEvent = systemsOfEvent
-			_systems[_exp_2] = _systemsOfEvent
-			return _systems
-		end
-		for _k, _v in _exp_1 do
-			_callback(_v, _k, _exp_1)
-		end
-		-- ▲ ReadonlyMap.forEach ▲
-		local _exp_2 = self.systems
-		-- ▼ ReadonlyMap.forEach ▼
-		local _callback_1 = function(systemsOfEvent, event)
+			return _systems:set(_exp_1, systemsOfEvent)
+		end)
+		self.systems:forEach(function(systemsOfEvent, event)
 			event:Connect(function()
 				-- ▼ ReadonlyArray.forEach ▼
-				local _callback_2 = function(_param)
+				local _callback = function(_param)
 					local system = _param.system
 					system()
 				end
 				for _k, _v in systemsOfEvent do
-					_callback_2(_v, _k - 1, systemsOfEvent)
+					_callback(_v, _k - 1, systemsOfEvent)
 				end
 				-- ▲ ReadonlyArray.forEach ▲
 			end)
-		end
-		for _k, _v in _exp_2 do
-			_callback_1(_v, _k, _exp_2)
-		end
-		-- ▲ ReadonlyMap.forEach ▲
+		end)
+	end
+	function Covenant:preventPostStartCall()
+		local _arg0 = not self.started
+		assert(_arg0, "Attempted to schedule system after starting")
 	end
 	function Covenant:schedule(event, system, priority)
 		if priority == nil then
 			priority = 0
 		end
-		local _arg0 = not self.started
-		assert(_arg0, "Attempted to schedule system after starting")
-		local _systems = self.systems
-		local _event = event
-		local systemsOfEvent = _systems[_event]
+		self:preventPostStartCall()
+		local systemsOfEvent = self.systems:get(event)
 		if systemsOfEvent == nil then
 			systemsOfEvent = {}
-			local _systems_1 = self.systems
-			local _event_1 = event
-			local _systemsOfEvent = systemsOfEvent
-			_systems_1[_event_1] = _systemsOfEvent
+			self.systems:set(event, systemsOfEvent)
 		end
 		local _systemsOfEvent = systemsOfEvent
-		local _arg0_1 = {
+		local _arg0 = {
 			system = system,
 			priority = priority,
 		}
-		table.insert(_systemsOfEvent, _arg0_1)
+		table.insert(_systemsOfEvent, _arg0)
 	end
 	function Covenant:worldSet(entity, component, newState, doNotReconcile)
 		if doNotReconcile == nil then
@@ -436,8 +421,15 @@ do
 		-- ▲ ReadonlySet.forEach ▲
 	end
 	function Covenant:worldComponent()
+		self:preventPostStartCall()
 		local c = self._world:component()
+		local _undefinedStringifiedComponents = self.undefinedStringifiedComponents
+		local _arg0 = tostring(c)
+		_undefinedStringifiedComponents[_arg0] = true
 		return c
+	end
+	function Covenant:worldInternalComponent()
+		return self._world:component()
 	end
 	function Covenant:checkComponentDefined(component)
 		local _undefinedStringifiedComponents = self.undefinedStringifiedComponents
@@ -583,7 +575,6 @@ do
 	end
 	function Covenant:defineManagedChildren(_param)
 		local parentComponent = _param.parentComponent
-		local parentEntityTrackerComponent = _param.parentEntityTrackerComponent
 		local childIdentityComponent = _param.childIdentityComponent
 		local getIdentifier = _param.getIdentifier
 		local queriedComponents = _param.queriedComponents
@@ -591,8 +582,8 @@ do
 		local replicated = _param.replicated
 		local predictionValidator = _param.predictionValidator
 		self:checkComponentDefined(parentComponent)
-		self:checkComponentDefined(parentEntityTrackerComponent)
 		self:checkComponentDefined(childIdentityComponent)
+		local parentEntityTrackerComponent = self:worldInternalComponent()
 		self:defineComponentNetworkBehavior(parentComponent, replicated, predictionValidator)
 		local queryParentComponent = self:worldQuery(parentComponent):cached()
 		local willUpdate = true

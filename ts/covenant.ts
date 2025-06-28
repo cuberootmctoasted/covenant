@@ -286,12 +286,17 @@ export class Covenant {
         });
     }
 
+    private preventPostStartCall() {
+        assert(!this.started, "Attempted to schedule system after starting");
+    }
+
     private schedule(
         event: RBXScriptSignal,
         system: () => void,
         priority: number = 0,
     ) {
-        assert(!this.started, "Attempted to schedule system after starting");
+        this.preventPostStartCall();
+
         let systemsOfEvent = this.systems.get(event);
         if (systemsOfEvent === undefined) {
             systemsOfEvent = [];
@@ -421,8 +426,14 @@ export class Covenant {
     }
 
     public worldComponent<T extends defined>() {
+        this.preventPostStartCall();
         const c = this._world.component<T>();
+        this.undefinedStringifiedComponents.add(tostring(c));
         return c;
+    }
+
+    private worldInternalComponent<T extends defined>() {
+        return this._world.component<T>();
     }
 
     private checkComponentDefined(component: Entity) {
@@ -549,7 +560,6 @@ export class Covenant {
 
     public defineManagedChildren<T extends defined>({
         parentComponent,
-        parentEntityTrackerComponent,
         childIdentityComponent,
         getIdentifier,
         queriedComponents,
@@ -560,7 +570,6 @@ export class Covenant {
         replicated: boolean;
         predictionValidator: ComponentPredictionValidator | false;
         parentComponent: Entity<ReadonlyArray<T>>;
-        parentEntityTrackerComponent: Entity<Map<Discriminator, Entity>>;
         childIdentityComponent: Entity<T>;
         getIdentifier: (state: T) => Discriminator;
         queriedComponents: Entity[][];
@@ -572,8 +581,10 @@ export class Covenant {
         ) => ReadonlyArray<T>;
     }) {
         this.checkComponentDefined(parentComponent);
-        this.checkComponentDefined(parentEntityTrackerComponent);
         this.checkComponentDefined(childIdentityComponent);
+
+        const parentEntityTrackerComponent =
+            this.worldInternalComponent<Map<Discriminator, Entity>>();
 
         this.defineComponentNetworkBehavior(
             parentComponent,

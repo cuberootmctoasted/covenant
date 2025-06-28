@@ -36,11 +36,13 @@ export declare class Covenant {
     private setupReplicationClient;
     private setupReplication;
     start(): void;
+    private preventPostStartCall;
     private schedule;
     private worldSet;
     subscribeComponent<T>(component: Entity<T>, subscriber: (entity: Entity, state: T | undefined, previousState: T | undefined) => void): () => void;
     private worldDelete;
     worldComponent<T extends defined>(): Entity<T>;
+    private worldInternalComponent;
     private checkComponentDefined;
     private defineComponentNetworkBehavior;
     defineComputedComponent<T extends defined>({ component, queriedComponents, recipe, replicated, predictionValidator, }: {
@@ -50,11 +52,10 @@ export declare class Covenant {
         queriedComponents: Entity[][];
         recipe: (entity: Entity, lastState: T | undefined, updateId: number, hooks: CovenantHooks) => T | undefined;
     }): void;
-    defineManagedChildren<T extends defined>({ parentComponent, parentEntityTrackerComponent, childIdentityComponent, getIdentifier, queriedComponents, recipe, replicated, predictionValidator, }: {
+    defineManagedChildren<T extends defined>({ parentComponent, childIdentityComponent, getIdentifier, queriedComponents, recipe, replicated, predictionValidator, }: {
         replicated: boolean;
         predictionValidator: ComponentPredictionValidator | false;
         parentComponent: Entity<ReadonlyArray<T>>;
-        parentEntityTrackerComponent: Entity<Map<Discriminator, Entity>>;
         childIdentityComponent: Entity<T>;
         getIdentifier: (state: T) => Discriminator;
         queriedComponents: Entity[][];

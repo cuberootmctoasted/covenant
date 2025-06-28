@@ -412,14 +412,14 @@ function createUseInterval({
             return trueOnInit;
         }
         const nextClock = nextClocks.get(discriminator)!;
-        if (nextClock < os.clock()) {
+        if (nextClock > os.clock()) {
             caches.set(discriminator, false);
-            return true;
+            return false;
         } else {
             nextClocks.set(discriminator, os.clock() + seconds);
             task.delay(seconds, indicateUpdate);
             caches.set(discriminator, true);
-            return false;
+            return true;
         }
     };
 }
