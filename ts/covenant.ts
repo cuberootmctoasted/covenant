@@ -3,6 +3,7 @@ import { Players, RunService } from "@rbxts/services";
 import { CovenantHooks, createHooks, Discriminator } from "./hooks";
 import { Remove, Delete } from "./stringEnums";
 import { compareMaps, turnArrayWithIdentifierToMap } from "./helpers";
+import { EventMap } from "./dataStructureWithEvents";
 
 // Map<Entity, Delete | Map<Component, state | Remove>>
 export type WorldChangesForReplication = Map<
@@ -63,10 +64,8 @@ type ComponentPredictionValidator = (
 export class Covenant {
     private _world: World = createWorldWithRange(1000, 20000);
 
-    private systems: Map<
-        RBXScriptSignal,
-        { system: () => void; priority: number }[]
-    > = new Map();
+    private systems: EventMap<{ system: () => void; priority: number }[]> =
+        new EventMap();
 
     private worldChangesForReplication: WorldChangesForReplication = new Map();
     private worldChangesForPrediction: WorldChangesForPrediction = new Map();
@@ -180,7 +179,7 @@ export class Covenant {
         }
     }
 
-    private setupRelicationServer() {
+    private setupReplicationServer() {
         this.schedule(
             RunService.Heartbeat,
             () => {
@@ -255,7 +254,7 @@ export class Covenant {
 
     private setupReplication() {
         if (RunService.IsServer()) {
-            this.setupRelicationServer();
+            this.setupReplicationServer();
             this.setupReplicationPayload();
         }
         if (RunService.IsClient()) {
@@ -428,7 +427,7 @@ export class Covenant {
 
     private checkComponentDefined(component: Entity) {
         assert(
-            this.undefinedStringifiedComponents.has(tostring(component)),
+            !this.undefinedStringifiedComponents.has(tostring(component)),
             `Component ${component} is already defined`,
         );
         this.undefinedStringifiedComponents.delete(tostring(component));
@@ -766,6 +765,7 @@ export class Covenant {
                 this.worldSet(entity, identityComponent, state);
             });
             entitiesToDelete?.forEach((entity) => {
+                if (!this.worldHas(entity, identityComponent)) return;
                 this.worldDelete(entity);
             });
         };

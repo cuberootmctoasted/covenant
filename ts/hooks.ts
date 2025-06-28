@@ -1,4 +1,5 @@
 import { Entity } from "@rbxts/jecs";
+import { EventMap, EventSet } from "./dataStructureWithEvents";
 
 type AsyncResult<T = unknown> = {
     completed: boolean;
@@ -68,9 +69,9 @@ interface CovenantHooksProps {
 function createUseEvent({
     indicateUpdate,
 }: CovenantHooksProps): CovenantHooks["useEvent"] {
-    const queues: Map<RBXScriptSignal, defined[]> = new Map();
-    const watchedEvents: Set<RBXScriptSignal> = new Set();
-    const caches: Map<RBXScriptSignal, defined> = new Map();
+    const queues: EventMap<defined[]> = new EventMap();
+    const watchedEvents: EventSet = new EventSet();
+    const caches: EventMap<defined> = new EventMap();
     let lastUpdateId = -1;
     return function <T extends Array<unknown>>(
         updateId: number,
@@ -106,9 +107,9 @@ function createUseEvent({
 function createUseEventImmediately({
     indicateUpdate,
 }: CovenantHooksProps): CovenantHooks["useEventImmediately"] {
-    const queues: Map<RBXScriptSignal, defined[]> = new Map();
-    const watchedEvents: Set<RBXScriptSignal> = new Set();
-    const caches: Map<RBXScriptSignal, defined> = new Map();
+    const queues: EventMap<defined[]> = new EventMap();
+    const watchedEvents: EventSet = new EventSet();
+    const caches: EventMap<defined> = new EventMap();
     let lastUpdateId = -1;
     return function <T extends Array<unknown>, TReturn extends defined>(
         updateId: number,
@@ -273,7 +274,6 @@ function createUseAsync({
             caches.set(discriminator, state.result);
             return state.result as AsyncResult<T>;
         } else {
-            coroutine.yield(state.thread);
             coroutine.close(state.thread);
             const newResult: AsyncResult = {
                 completed: false,
@@ -414,12 +414,12 @@ function createUseInterval({
         const nextClock = nextClocks.get(discriminator)!;
         if (nextClock < os.clock()) {
             caches.set(discriminator, false);
-            return false;
+            return true;
         } else {
             nextClocks.set(discriminator, os.clock() + seconds);
             task.delay(seconds, indicateUpdate);
             caches.set(discriminator, true);
-            return true;
+            return false;
         }
     };
 }

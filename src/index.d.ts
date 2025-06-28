@@ -1,2 +1,1 @@
-import { Covenant } from "./covenant";
-export = Covenant;
+export * from "./covenant";

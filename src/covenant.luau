@@ -137,7 +137,7 @@ do
 			self:setupPredictionServer()
 		end
 	end
-	function Covenant:setupRelicationServer()
+	function Covenant:setupReplicationServer()
 		self:schedule(RunService.Heartbeat, function()
 			if next(self.worldChangesForReplication) == nil then
 				return nil
@@ -225,7 +225,7 @@ do
 	end
 	function Covenant:setupReplication()
 		if RunService:IsServer() then
-			self:setupRelicationServer()
+			self:setupReplicationServer()
 			self:setupReplicationPayload()
 		end
 		if RunService:IsClient() then
@@ -442,7 +442,7 @@ do
 	function Covenant:checkComponentDefined(component)
 		local _undefinedStringifiedComponents = self.undefinedStringifiedComponents
 		local _arg0 = tostring(component)
-		local _arg0_1 = _undefinedStringifiedComponents[_arg0] ~= nil
+		local _arg0_1 = not (_undefinedStringifiedComponents[_arg0] ~= nil)
 		local _arg1 = `Component {component} is already defined`
 		assert(_arg0_1, _arg1)
 		local _undefinedStringifiedComponents_1 = self.undefinedStringifiedComponents
@@ -807,6 +807,9 @@ do
 			if _result_1 ~= nil then
 				-- ▼ ReadonlyArray.forEach ▼
 				local _callback = function(entity)
+					if not self:worldHas(entity, identityComponent) then
+						return nil
+					end
 					self:worldDelete(entity)
 				end
 				for _k, _v in _result_1 do

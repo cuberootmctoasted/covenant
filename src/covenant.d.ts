@@ -31,7 +31,7 @@ export declare class Covenant {
     private setupPredictionClient;
     private setupPredictionServer;
     private setupPrediction;
-    private setupRelicationServer;
+    private setupReplicationServer;
     private setupReplicationPayload;
     private setupReplicationClient;
     private setupReplication;
