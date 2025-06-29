@@ -264,10 +264,11 @@ export class Covenant {
 
     public start() {
         assert(!this.started, "Already started");
-        assert(
-            this.undefinedStringifiedComponents.isEmpty(),
-            `There are ${this.undefinedStringifiedComponents.size()} components that are not defined`,
-        );
+        if (!this.undefinedStringifiedComponents.isEmpty()) {
+            warn(
+                `There are ${this.undefinedStringifiedComponents.size()} components that are not defined`,
+            );
+        }
         this.started = true;
         this.systems.forEach((systemsOfEvent, event) =>
             this.systems.set(
@@ -433,12 +434,13 @@ export class Covenant {
     }
 
     private worldInternalComponent<T extends defined>() {
+        this.preventPostStartCall();
         return this._world.component<T>();
     }
 
     private checkComponentDefined(component: Entity) {
         assert(
-            !this.undefinedStringifiedComponents.has(tostring(component)),
+            this.undefinedStringifiedComponents.has(tostring(component)),
             `Component ${component} is already defined`,
         );
         this.undefinedStringifiedComponents.delete(tostring(component));
@@ -559,7 +561,6 @@ export class Covenant {
     }
 
     public defineManagedChildren<T extends defined>({
-        parentComponent,
         childIdentityComponent,
         getIdentifier,
         queriedComponents,
@@ -569,7 +570,6 @@ export class Covenant {
     }: {
         replicated: boolean;
         predictionValidator: ComponentPredictionValidator | false;
-        parentComponent: Entity<ReadonlyArray<T>>;
         childIdentityComponent: Entity<T>;
         getIdentifier: (state: T) => Discriminator;
         queriedComponents: Entity[][];
@@ -580,11 +580,11 @@ export class Covenant {
             hooks: CovenantHooks,
         ) => ReadonlyArray<T>;
     }) {
-        this.checkComponentDefined(parentComponent);
         this.checkComponentDefined(childIdentityComponent);
 
         const parentEntityTrackerComponent =
             this.worldInternalComponent<Map<Discriminator, Entity>>();
+        const parentComponent = this.worldInternalComponent<ReadonlyArray<T>>();
 
         this.defineComponentNetworkBehavior(
             parentComponent,
@@ -630,6 +630,55 @@ export class Covenant {
             });
 
         let lastUpdateId = 0;
+
+        this.subscribeComponent(
+            parentComponent,
+            (entity, newState, lastState) => {
+                const lastStateMap = turnArrayWithIdentifierToMap(
+                    lastState ?? [],
+                    getIdentifier,
+                );
+                const newStateMap = turnArrayWithIdentifierToMap(
+                    newState ?? [],
+                    getIdentifier,
+                );
+
+                let entityTracker = this.worldGet(
+                    entity,
+                    parentEntityTrackerComponent,
+                );
+                if (entityTracker === undefined) {
+                    entityTracker = new Map();
+                    this.worldSet(
+                        entity,
+                        parentEntityTrackerComponent,
+                        entityTracker,
+                    );
+                }
+                const { entriesChanged, entriesAdded, keysRemoved } =
+                    compareMaps(lastStateMap, newStateMap);
+                entriesAdded.forEach(({ key, value }) => {
+                    const childEntity = this.worldEntity();
+                    entityTracker.set(key, childEntity);
+                    this.worldSet(childEntity, childIdentityComponent, value);
+                    this._world.add(childEntity, pair(ChildOf, entity));
+                });
+                entriesChanged.forEach(({ key, value }) => {
+                    const childEntity = entityTracker.get(key);
+                    assert(childEntity);
+                    assert(this.worldContains(childEntity));
+                    this.worldSet(childEntity, childIdentityComponent, value);
+                });
+                keysRemoved.forEach((key) => {
+                    const childEntity = entityTracker.get(key);
+                    assert(childEntity);
+                    assert(this.worldContains(childEntity));
+                    this.worldDelete(childEntity);
+                    entityTracker.delete(key);
+                });
+            },
+        );
+
         const updater = () => {
             const updateId = ++lastUpdateId;
             const unhandledStringifiedEntities: Set<string> = new Set();
@@ -645,61 +694,10 @@ export class Covenant {
                     handledStringifiedEntities.add(stringifiedEntity);
                     unhandledStringifiedEntities.delete(stringifiedEntity);
 
-                    let entityTracker = this.worldGet(
-                        entity,
-                        parentEntityTrackerComponent,
-                    );
-                    if (entityTracker === undefined) {
-                        entityTracker = new Map();
-                        this.worldSet(
-                            entity,
-                            parentEntityTrackerComponent,
-                            entityTracker,
-                        );
-                    }
-
                     const lastState =
                         this.worldGet(entity, parentComponent) ?? [];
                     const newState = recipe(entity, lastState, updateId, hooks);
                     this.worldSet(entity, parentComponent, newState);
-
-                    const lastStateMap = turnArrayWithIdentifierToMap(
-                        lastState,
-                        getIdentifier,
-                    );
-                    const newStateMap = turnArrayWithIdentifierToMap(
-                        newState,
-                        getIdentifier,
-                    );
-                    const { entriesChanged, entriesAdded, keysRemoved } =
-                        compareMaps(lastStateMap, newStateMap);
-                    entriesAdded.forEach(({ key, value }) => {
-                        const childEntity = this.worldEntity();
-                        entityTracker.set(key, childEntity);
-                        this.worldSet(
-                            childEntity,
-                            childIdentityComponent,
-                            value,
-                        );
-                        this._world.add(childEntity, pair(ChildOf, entity));
-                    });
-                    entriesChanged.forEach(({ key, value }) => {
-                        const childEntity = entityTracker.get(key);
-                        assert(childEntity);
-                        assert(this.worldContains(childEntity));
-                        this.worldSet(
-                            childEntity,
-                            childIdentityComponent,
-                            value,
-                        );
-                    });
-                    keysRemoved.forEach((key) => {
-                        const childEntity = entityTracker.get(key);
-                        assert(childEntity);
-                        assert(this.worldContains(childEntity));
-                        this.worldDelete(childEntity);
-                        entityTracker.delete(key);
-                    });
                 }
             });
             unhandledStringifiedEntities.forEach((stringifiedEntity) => {

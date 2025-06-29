@@ -236,23 +236,23 @@ do
 	function Covenant:start()
 		local _arg0 = not self.started
 		assert(_arg0, "Already started")
-		local _exp = next(self.undefinedStringifiedComponents) == nil
-		-- ▼ ReadonlySet.size ▼
-		local _size = 0
-		for _ in self.undefinedStringifiedComponents do
-			_size += 1
+		if not (next(self.undefinedStringifiedComponents) == nil) then
+			-- ▼ ReadonlySet.size ▼
+			local _size = 0
+			for _ in self.undefinedStringifiedComponents do
+				_size += 1
+			end
+			-- ▲ ReadonlySet.size ▲
+			warn(`There are {_size} components that are not defined`)
 		end
-		-- ▲ ReadonlySet.size ▲
-		local _arg1 = `There are {_size} components that are not defined`
-		assert(_exp, _arg1)
 		self.started = true
 		self.systems:forEach(function(systemsOfEvent, event)
 			local _systems = self.systems
-			local _exp_1 = event
+			local _exp = event
 			table.sort(systemsOfEvent, function(a, b)
 				return a.priority < b.priority
 			end)
-			return _systems:set(_exp_1, systemsOfEvent)
+			return _systems:set(_exp, systemsOfEvent)
 		end)
 		self.systems:forEach(function(systemsOfEvent, event)
 			event:Connect(function()
@@ -429,12 +429,13 @@ do
 		return c
 	end
 	function Covenant:worldInternalComponent()
+		self:preventPostStartCall()
 		return self._world:component()
 	end
 	function Covenant:checkComponentDefined(component)
 		local _undefinedStringifiedComponents = self.undefinedStringifiedComponents
 		local _arg0 = tostring(component)
-		local _arg0_1 = not (_undefinedStringifiedComponents[_arg0] ~= nil)
+		local _arg0_1 = _undefinedStringifiedComponents[_arg0] ~= nil
 		local _arg1 = `Component {component} is already defined`
 		assert(_arg0_1, _arg1)
 		local _undefinedStringifiedComponents_1 = self.undefinedStringifiedComponents
@@ -574,16 +575,15 @@ do
 		end)
 	end
 	function Covenant:defineManagedChildren(_param)
-		local parentComponent = _param.parentComponent
 		local childIdentityComponent = _param.childIdentityComponent
 		local getIdentifier = _param.getIdentifier
 		local queriedComponents = _param.queriedComponents
 		local recipe = _param.recipe
 		local replicated = _param.replicated
 		local predictionValidator = _param.predictionValidator
-		self:checkComponentDefined(parentComponent)
 		self:checkComponentDefined(childIdentityComponent)
 		local parentEntityTrackerComponent = self:worldInternalComponent()
+		local parentComponent = self:worldInternalComponent()
 		self:defineComponentNetworkBehavior(parentComponent, replicated, predictionValidator)
 		local queryParentComponent = self:worldQuery(parentComponent):cached()
 		local willUpdate = true
@@ -648,6 +648,63 @@ do
 		end
 		-- ▲ ReadonlyArray.forEach ▲
 		local lastUpdateId = 0
+		self:subscribeComponent(parentComponent, function(entity, newState, lastState)
+			local lastStateMap = turnArrayWithIdentifierToMap(lastState or {}, getIdentifier)
+			local newStateMap = turnArrayWithIdentifierToMap(newState or {}, getIdentifier)
+			local entityTracker = self:worldGet(entity, parentEntityTrackerComponent)
+			if entityTracker == nil then
+				entityTracker = {}
+				self:worldSet(entity, parentEntityTrackerComponent, entityTracker)
+			end
+			local _binding = compareMaps(lastStateMap, newStateMap)
+			local entriesChanged = _binding.entriesChanged
+			local entriesAdded = _binding.entriesAdded
+			local keysRemoved = _binding.keysRemoved
+			-- ▼ ReadonlyArray.forEach ▼
+			local _callback_4 = function(_param_1)
+				local key = _param_1.key
+				local value = _param_1.value
+				local childEntity = self:worldEntity()
+				entityTracker[key] = childEntity
+				self:worldSet(childEntity, childIdentityComponent, value)
+				self._world:add(childEntity, pair(ChildOf, entity))
+			end
+			for _k, _v in entriesAdded do
+				_callback_4(_v, _k - 1, entriesAdded)
+			end
+			-- ▲ ReadonlyArray.forEach ▲
+			-- ▼ ReadonlyArray.forEach ▼
+			local _callback_5 = function(_param_1)
+				local key = _param_1.key
+				local value = _param_1.value
+				local childEntity = entityTracker[key]
+				assert(childEntity ~= 0 and childEntity == childEntity and childEntity)
+				local _arg0 = self:worldContains(childEntity)
+				assert(_arg0)
+				self:worldSet(childEntity, childIdentityComponent, value)
+			end
+			for _k, _v in entriesChanged do
+				_callback_5(_v, _k - 1, entriesChanged)
+			end
+			-- ▲ ReadonlyArray.forEach ▲
+			-- ▼ ReadonlyArray.forEach ▼
+			local _callback_6 = function(key)
+				local _entityTracker = entityTracker
+				local _key = key
+				local childEntity = _entityTracker[_key]
+				assert(childEntity ~= 0 and childEntity == childEntity and childEntity)
+				local _arg0 = self:worldContains(childEntity)
+				assert(_arg0)
+				self:worldDelete(childEntity)
+				local _entityTracker_1 = entityTracker
+				local _key_1 = key
+				_entityTracker_1[_key_1] = nil
+			end
+			for _k, _v in keysRemoved do
+				_callback_6(_v, _k - 1, keysRemoved)
+			end
+			-- ▲ ReadonlyArray.forEach ▲
+		end)
 		local updater = function()
 			lastUpdateId += 1
 			local updateId = lastUpdateId
@@ -666,64 +723,9 @@ do
 					end
 					handledStringifiedEntities[stringifiedEntity] = true
 					unhandledStringifiedEntities[stringifiedEntity] = nil
-					local entityTracker = self:worldGet(entity, parentEntityTrackerComponent)
-					if entityTracker == nil then
-						entityTracker = {}
-						self:worldSet(entity, parentEntityTrackerComponent, entityTracker)
-					end
 					local lastState = self:worldGet(entity, parentComponent) or {}
 					local newState = recipe(entity, lastState, updateId, hooks)
 					self:worldSet(entity, parentComponent, newState)
-					local lastStateMap = turnArrayWithIdentifierToMap(lastState, getIdentifier)
-					local newStateMap = turnArrayWithIdentifierToMap(newState, getIdentifier)
-					local _binding = compareMaps(lastStateMap, newStateMap)
-					local entriesChanged = _binding.entriesChanged
-					local entriesAdded = _binding.entriesAdded
-					local keysRemoved = _binding.keysRemoved
-					-- ▼ ReadonlyArray.forEach ▼
-					local _callback_5 = function(_param_1)
-						local key = _param_1.key
-						local value = _param_1.value
-						local childEntity = self:worldEntity()
-						entityTracker[key] = childEntity
-						self:worldSet(childEntity, childIdentityComponent, value)
-						self._world:add(childEntity, pair(ChildOf, entity))
-					end
-					for _k, _v in entriesAdded do
-						_callback_5(_v, _k - 1, entriesAdded)
-					end
-					-- ▲ ReadonlyArray.forEach ▲
-					-- ▼ ReadonlyArray.forEach ▼
-					local _callback_6 = function(_param_1)
-						local key = _param_1.key
-						local value = _param_1.value
-						local childEntity = entityTracker[key]
-						assert(childEntity ~= 0 and childEntity == childEntity and childEntity)
-						local _arg0 = self:worldContains(childEntity)
-						assert(_arg0)
-						self:worldSet(childEntity, childIdentityComponent, value)
-					end
-					for _k, _v in entriesChanged do
-						_callback_6(_v, _k - 1, entriesChanged)
-					end
-					-- ▲ ReadonlyArray.forEach ▲
-					-- ▼ ReadonlyArray.forEach ▼
-					local _callback_7 = function(key)
-						local _entityTracker = entityTracker
-						local _key = key
-						local childEntity = _entityTracker[_key]
-						assert(childEntity ~= 0 and childEntity == childEntity and childEntity)
-						local _arg0 = self:worldContains(childEntity)
-						assert(_arg0)
-						self:worldDelete(childEntity)
-						local _entityTracker_1 = entityTracker
-						local _key_1 = key
-						_entityTracker_1[_key_1] = nil
-					end
-					for _k, _v in keysRemoved do
-						_callback_7(_v, _k - 1, keysRemoved)
-					end
-					-- ▲ ReadonlyArray.forEach ▲
 				end
 			end
 			for _k, _v in queries do

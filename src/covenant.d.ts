@@ -52,10 +52,9 @@ export declare class Covenant {
         queriedComponents: Entity[][];
         recipe: (entity: Entity, lastState: T | undefined, updateId: number, hooks: CovenantHooks) => T | undefined;
     }): void;
-    defineManagedChildren<T extends defined>({ parentComponent, childIdentityComponent, getIdentifier, queriedComponents, recipe, replicated, predictionValidator, }: {
+    defineManagedChildren<T extends defined>({ childIdentityComponent, getIdentifier, queriedComponents, recipe, replicated, predictionValidator, }: {
         replicated: boolean;
         predictionValidator: ComponentPredictionValidator | false;
-        parentComponent: Entity<ReadonlyArray<T>>;
         childIdentityComponent: Entity<T>;
         getIdentifier: (state: T) => Discriminator;
         queriedComponents: Entity[][];

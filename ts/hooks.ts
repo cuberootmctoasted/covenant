@@ -8,6 +8,7 @@ type AsyncResult<T = unknown> = {
 };
 export type Discriminator = Exclude<defined, number>;
 
+// TODO: make events available for dynamic instances
 export interface CovenantHooks {
     useEvent: <T extends Array<unknown>>(
         updateId: number,
