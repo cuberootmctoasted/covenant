@@ -6,8 +6,8 @@ type AsyncResult<T = unknown> = {
 };
 export type Discriminator = Exclude<defined, number>;
 export interface CovenantHooks {
-    useEvent: <T extends Array<unknown>>(updateId: number, event: RBXScriptSignal<(...args: T) => void>) => T[];
-    useEventImmediately: <T extends Array<unknown>, TReturn extends defined>(updateId: number, event: RBXScriptSignal<(...args: T) => void>, callback: (...args: T) => TReturn) => TReturn[];
+    useEvent: <T extends Array<unknown>>(updateId: number, instance: Instance, event: RBXScriptSignal<(...args: T) => void>) => T[];
+    useEventImmediately: <T extends Array<unknown>, TReturn extends defined>(updateId: number, instance: Instance, event: RBXScriptSignal<(...args: T) => void>, callback: (...args: T) => TReturn) => TReturn[];
     useComponentChange: <T extends defined>(updateId: number, component: Entity<T>) => {
         entity: Entity;
         state: T | undefined;

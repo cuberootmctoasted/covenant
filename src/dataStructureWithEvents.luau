@@ -89,6 +89,113 @@ do
 		return self.stringifiedEventToValue[stringifiedEvent]
 	end
 end
+local EventMapWithInstance
+do
+	EventMapWithInstance = setmetatable({}, {
+		__tostring = function()
+			return "EventMapWithInstance"
+		end,
+	})
+	EventMapWithInstance.__index = EventMapWithInstance
+	function EventMapWithInstance.new(...)
+		local self = setmetatable({}, EventMapWithInstance)
+		return self:constructor(...) or self
+	end
+	function EventMapWithInstance:constructor()
+		self.instanceEventMaps = {}
+	end
+	function EventMapWithInstance:set(instance, key, value)
+		local _instanceEventMaps = self.instanceEventMaps
+		local _instance = instance
+		local eventMap = _instanceEventMaps[_instance]
+		if eventMap == nil then
+			eventMap = EventMap.new()
+			local _instanceEventMaps_1 = self.instanceEventMaps
+			local _instance_1 = instance
+			local _eventMap = eventMap
+			_instanceEventMaps_1[_instance_1] = _eventMap
+		end
+		eventMap:set(key, value)
+		return self
+	end
+	function EventMapWithInstance:delete(instance, key)
+		local _instanceEventMaps = self.instanceEventMaps
+		local _instance = instance
+		local eventMap = _instanceEventMaps[_instance]
+		if eventMap == nil then
+			return false
+		end
+		return eventMap:delete(key)
+	end
+	function EventMapWithInstance:clear()
+		table.clear(self.instanceEventMaps)
+	end
+	function EventMapWithInstance:deletedInstance(instance)
+		local _instanceEventMaps = self.instanceEventMaps
+		local _instance = instance
+		-- ▼ Map.delete ▼
+		local _valueExisted = _instanceEventMaps[_instance] ~= nil
+		_instanceEventMaps[_instance] = nil
+		-- ▲ Map.delete ▲
+		return _valueExisted
+	end
+	function EventMapWithInstance:isEmpty()
+		return next(self.instanceEventMaps) == nil
+	end
+	function EventMapWithInstance:isInstanceEmpty(instance)
+		local _instanceEventMaps = self.instanceEventMaps
+		local _instance = instance
+		local eventMap = _instanceEventMaps[_instance]
+		if eventMap == nil then
+			return true
+		end
+		return eventMap:isEmpty()
+	end
+	function EventMapWithInstance:forEach(callbackfn)
+		local _exp = self.instanceEventMaps
+		-- ▼ ReadonlyMap.forEach ▼
+		local _callback = function(eventMap)
+			eventMap:forEach(function(value, event)
+				callbackfn(value, event)
+			end)
+		end
+		for _k, _v in _exp do
+			_callback(_v, _k, _exp)
+		end
+		-- ▲ ReadonlyMap.forEach ▲
+	end
+	function EventMapWithInstance:size()
+		local size = 0
+		local _exp = self.instanceEventMaps
+		-- ▼ ReadonlyMap.forEach ▼
+		local _callback = function(eventMap)
+			size += eventMap:size()
+		end
+		for _k, _v in _exp do
+			_callback(_v, _k, _exp)
+		end
+		-- ▲ ReadonlyMap.forEach ▲
+		return size
+	end
+	function EventMapWithInstance:has(instance, key)
+		local _instanceEventMaps = self.instanceEventMaps
+		local _instance = instance
+		local eventMap = _instanceEventMaps[_instance]
+		if eventMap == nil then
+			return false
+		end
+		return eventMap:has(key)
+	end
+	function EventMapWithInstance:get(instance, key)
+		local _instanceEventMaps = self.instanceEventMaps
+		local _instance = instance
+		local eventMap = _instanceEventMaps[_instance]
+		if eventMap == nil then
+			return nil
+		end
+		return eventMap:get(key)
+	end
+end
 local EventSet
 do
 	EventSet = setmetatable({}, {
@@ -153,7 +260,107 @@ do
 		return self.stringifiedEventToEvent[stringifiedEvent] ~= nil
 	end
 end
+local EventSetWithInstance
+do
+	EventSetWithInstance = setmetatable({}, {
+		__tostring = function()
+			return "EventSetWithInstance"
+		end,
+	})
+	EventSetWithInstance.__index = EventSetWithInstance
+	function EventSetWithInstance.new(...)
+		local self = setmetatable({}, EventSetWithInstance)
+		return self:constructor(...) or self
+	end
+	function EventSetWithInstance:constructor()
+		self.instanceEventSets = {}
+	end
+	function EventSetWithInstance:add(instance, value)
+		local _instanceEventSets = self.instanceEventSets
+		local _instance = instance
+		local eventSet = _instanceEventSets[_instance]
+		if eventSet == nil then
+			eventSet = EventSet.new()
+			local _instanceEventSets_1 = self.instanceEventSets
+			local _instance_1 = instance
+			local _eventSet = eventSet
+			_instanceEventSets_1[_instance_1] = _eventSet
+		end
+		eventSet:add(value)
+		return self
+	end
+	function EventSetWithInstance:delete(instance, value)
+		local _instanceEventSets = self.instanceEventSets
+		local _instance = instance
+		local eventSet = _instanceEventSets[_instance]
+		if eventSet == nil then
+			return false
+		end
+		return eventSet:delete(value)
+	end
+	function EventSetWithInstance:deleteInstance(instance)
+		local _instanceEventSets = self.instanceEventSets
+		local _instance = instance
+		-- ▼ Map.delete ▼
+		local _valueExisted = _instanceEventSets[_instance] ~= nil
+		_instanceEventSets[_instance] = nil
+		-- ▲ Map.delete ▲
+		return _valueExisted
+	end
+	function EventSetWithInstance:clear()
+		table.clear(self.instanceEventSets)
+	end
+	function EventSetWithInstance:isEmpty()
+		return next(self.instanceEventSets) == nil
+	end
+	function EventSetWithInstance:isInstanceEmpty(instance)
+		local _instanceEventSets = self.instanceEventSets
+		local _instance = instance
+		local eventSet = _instanceEventSets[_instance]
+		if eventSet == nil then
+			return true
+		end
+		return eventSet:isEmpty()
+	end
+	function EventSetWithInstance:forEach(callbackfn)
+		local _exp = self.instanceEventSets
+		-- ▼ ReadonlyMap.forEach ▼
+		local _callback = function(eventSet)
+			eventSet:forEach(function(event)
+				callbackfn(event)
+			end)
+		end
+		for _k, _v in _exp do
+			_callback(_v, _k, _exp)
+		end
+		-- ▲ ReadonlyMap.forEach ▲
+	end
+	function EventSetWithInstance:size()
+		local size = 0
+		local _exp = self.instanceEventSets
+		-- ▼ ReadonlyMap.forEach ▼
+		local _callback = function(eventSet)
+			size += eventSet:size()
+		end
+		for _k, _v in _exp do
+			_callback(_v, _k, _exp)
+		end
+		-- ▲ ReadonlyMap.forEach ▲
+		return size
+	end
+	function EventSetWithInstance:has(instance, value)
+		local _instanceEventSets = self.instanceEventSets
+		local _instance = instance
+		local eventSet = _instanceEventSets[_instance]
+		if eventSet == nil then
+			return false
+		end
+		return eventSet:has(value)
+	end
+end
 return {
 	EventMap = EventMap,
+	EventMapWithInstance = EventMapWithInstance,
 	EventSet = EventSet,
+	EventSetWithInstance = EventSetWithInstance,
 }

@@ -1,5 +1,8 @@
 import { Entity } from "@rbxts/jecs";
-import { EventMap, EventSet } from "./dataStructureWithEvents";
+import {
+    EventMapWithInstance,
+    EventSetWithInstance,
+} from "./dataStructureWithEvents";
 
 type AsyncResult<T = unknown> = {
     completed: boolean;
@@ -12,10 +15,12 @@ export type Discriminator = Exclude<defined, number>;
 export interface CovenantHooks {
     useEvent: <T extends Array<unknown>>(
         updateId: number,
+        instance: Instance,
         event: RBXScriptSignal<(...args: T) => void>,
     ) => T[];
     useEventImmediately: <T extends Array<unknown>, TReturn extends defined>(
         updateId: number,
+        instance: Instance,
         event: RBXScriptSignal<(...args: T) => void>,
         callback: (...args: T) => TReturn,
     ) => TReturn[];
@@ -70,37 +75,38 @@ interface CovenantHooksProps {
 function createUseEvent({
     indicateUpdate,
 }: CovenantHooksProps): CovenantHooks["useEvent"] {
-    const queues: EventMap<defined[]> = new EventMap();
-    const watchedEvents: EventSet = new EventSet();
-    const caches: EventMap<defined> = new EventMap();
+    const queues: EventMapWithInstance<defined[]> = new EventMapWithInstance();
+    const watchedEvents: EventSetWithInstance = new EventSetWithInstance();
+    const caches: EventMapWithInstance<defined> = new EventMapWithInstance();
     let lastUpdateId = -1;
     return function <T extends Array<unknown>>(
         updateId: number,
+        instance: Instance,
         event: RBXScriptSignal<(...args: T) => void>,
     ): T[] {
         if (lastUpdateId !== updateId) {
             caches.clear();
             lastUpdateId = updateId;
         }
-        const cache = caches.get(event);
+        const cache = caches.get(instance, event);
         if (cache !== undefined) {
             return cache as T[];
         }
-        if (!watchedEvents.has(event)) {
-            watchedEvents.add(event);
-            queues.set(event, []);
+        if (!watchedEvents.has(instance, event)) {
+            watchedEvents.add(instance, event);
+            queues.set(instance, event, []);
             event.Connect((...args) => {
-                queues.get(event)!.push(args);
+                queues.get(instance, event)!.push(args);
                 indicateUpdate();
             });
-            caches.set(event, []);
+            caches.set(instance, event, []);
             return [];
         }
-        const queue = queues.get(event)!;
+        const queue = queues.get(instance, event)!;
         if (!queue.isEmpty()) {
-            queues.set(event, []);
+            queues.set(instance, event, []);
         }
-        caches.set(event, queue);
+        caches.set(instance, event, queue);
         return queue as T[];
     };
 }
@@ -108,12 +114,13 @@ function createUseEvent({
 function createUseEventImmediately({
     indicateUpdate,
 }: CovenantHooksProps): CovenantHooks["useEventImmediately"] {
-    const queues: EventMap<defined[]> = new EventMap();
-    const watchedEvents: EventSet = new EventSet();
-    const caches: EventMap<defined> = new EventMap();
+    const queues: EventMapWithInstance<defined[]> = new EventMapWithInstance();
+    const watchedEvents: EventSetWithInstance = new EventSetWithInstance();
+    const caches: EventMapWithInstance<defined> = new EventMapWithInstance();
     let lastUpdateId = -1;
     return function <T extends Array<unknown>, TReturn extends defined>(
         updateId: number,
+        instance: Instance,
         event: RBXScriptSignal<(...args: T) => void>,
         callback: (...args: T) => TReturn,
     ): TReturn[] {
@@ -121,25 +128,25 @@ function createUseEventImmediately({
             caches.clear();
             lastUpdateId = updateId;
         }
-        const cache = caches.get(event);
+        const cache = caches.get(instance, event);
         if (cache !== undefined) {
             return cache as TReturn[];
         }
-        if (!watchedEvents.has(event)) {
-            watchedEvents.add(event);
-            queues.set(event, []);
+        if (!watchedEvents.has(instance, event)) {
+            watchedEvents.add(instance, event);
+            queues.set(instance, event, []);
             event.Connect((...args) => {
-                queues.get(event)!.push(callback(...args));
+                queues.get(instance, event)!.push(callback(...args));
                 indicateUpdate();
             });
-            caches.set(event, []);
+            caches.set(instance, event, []);
             return [];
         }
-        const queue = queues.get(event)!;
+        const queue = queues.get(instance, event)!;
         if (!queue.isEmpty()) {
-            queues.set(event, []);
+            queues.set(instance, event, []);
         }
-        caches.set(event, queue);
+        caches.set(instance, event, queue);
         return queue as TReturn[];
     };
 }

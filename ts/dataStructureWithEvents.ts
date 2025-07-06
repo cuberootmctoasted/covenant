@@ -53,6 +53,71 @@ export class EventMap<T extends defined> {
     }
 }
 
+export class EventMapWithInstance<T extends defined> {
+    private instanceEventMaps: Map<Instance, EventMap<T>> = new Map();
+    constructor() {}
+    set(instance: Instance, key: RBXScriptSignal, value: T): this {
+        let eventMap = this.instanceEventMaps.get(instance);
+        if (eventMap === undefined) {
+            eventMap = new EventMap<T>();
+            this.instanceEventMaps.set(instance, eventMap);
+        }
+        eventMap.set(key, value);
+        return this;
+    }
+    delete(instance: Instance, key: RBXScriptSignal): boolean {
+        const eventMap = this.instanceEventMaps.get(instance);
+        if (eventMap === undefined) {
+            return false;
+        }
+        return eventMap.delete(key);
+    }
+    clear(): void {
+        this.instanceEventMaps.clear();
+    }
+    deletedInstance(instance: Instance): boolean {
+        return this.instanceEventMaps.delete(instance);
+    }
+    isEmpty(): boolean {
+        return this.instanceEventMaps.isEmpty();
+    }
+    isInstanceEmpty(instance: Instance): boolean {
+        const eventMap = this.instanceEventMaps.get(instance);
+        if (eventMap === undefined) {
+            return true;
+        }
+        return eventMap.isEmpty();
+    }
+    forEach(callbackfn: (value: T, key: RBXScriptSignal) => void): void {
+        this.instanceEventMaps.forEach((eventMap) => {
+            eventMap.forEach((value, event) => {
+                callbackfn(value, event);
+            });
+        });
+    }
+    size(): number {
+        let size = 0;
+        this.instanceEventMaps.forEach((eventMap) => {
+            size += eventMap.size();
+        });
+        return size;
+    }
+    has(instance: Instance, key: RBXScriptSignal): boolean {
+        const eventMap = this.instanceEventMaps.get(instance);
+        if (eventMap === undefined) {
+            return false;
+        }
+        return eventMap.has(key);
+    }
+    get(instance: Instance, key: RBXScriptSignal): T | undefined {
+        const eventMap = this.instanceEventMaps.get(instance);
+        if (eventMap === undefined) {
+            return undefined;
+        }
+        return eventMap.get(key);
+    }
+}
+
 export class EventSet {
     private stringifiedEventToEvent: Map<string, RBXScriptSignal> = new Map();
     constructor() {}
@@ -84,5 +149,63 @@ export class EventSet {
     has(value: RBXScriptSignal<Callback>): boolean {
         const stringifiedEvent = tostring(value);
         return this.stringifiedEventToEvent.has(stringifiedEvent);
+    }
+}
+
+export class EventSetWithInstance {
+    private instanceEventSets: Map<Instance, EventSet> = new Map();
+    constructor() {}
+    add(instance: Instance, value: RBXScriptSignal<Callback>): this {
+        let eventSet = this.instanceEventSets.get(instance);
+        if (eventSet === undefined) {
+            eventSet = new EventSet();
+            this.instanceEventSets.set(instance, eventSet);
+        }
+        eventSet.add(value);
+        return this;
+    }
+    delete(instance: Instance, value: RBXScriptSignal<Callback>): boolean {
+        const eventSet = this.instanceEventSets.get(instance);
+        if (eventSet === undefined) {
+            return false;
+        }
+        return eventSet.delete(value);
+    }
+    deleteInstance(instance: Instance): boolean {
+        return this.instanceEventSets.delete(instance);
+    }
+    clear(): void {
+        this.instanceEventSets.clear();
+    }
+    isEmpty(): boolean {
+        return this.instanceEventSets.isEmpty();
+    }
+    isInstanceEmpty(instance: Instance): boolean {
+        const eventSet = this.instanceEventSets.get(instance);
+        if (eventSet === undefined) {
+            return true;
+        }
+        return eventSet.isEmpty();
+    }
+    forEach(callbackfn: (value: RBXScriptSignal) => void): void {
+        this.instanceEventSets.forEach((eventSet) => {
+            eventSet.forEach((event) => {
+                callbackfn(event);
+            });
+        });
+    }
+    size(): number {
+        let size = 0;
+        this.instanceEventSets.forEach((eventSet) => {
+            size += eventSet.size();
+        });
+        return size;
+    }
+    has(instance: Instance, value: RBXScriptSignal<Callback>): boolean {
+        const eventSet = this.instanceEventSets.get(instance);
+        if (eventSet === undefined) {
+            return false;
+        }
+        return eventSet.has(value);
     }
 }

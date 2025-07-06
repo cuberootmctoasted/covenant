@@ -1,6 +1,6 @@
 {
     "name": "@rbxts/covenant",
-    "version": "1.0.18",
+    "version": "1.2.0",
     "main": "src/init.luau",
     "scripts": {
         "build": "rbxtsc",

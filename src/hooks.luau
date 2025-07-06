@@ -1,77 +1,78 @@
 -- Compiled with roblox-ts v3.0.0
 local TS = _G[script]
 local _dataStructureWithEvents = TS.import(script, script.Parent, "dataStructureWithEvents")
-local EventMap = _dataStructureWithEvents.EventMap
-local EventSet = _dataStructureWithEvents.EventSet
+local EventMapWithInstance = _dataStructureWithEvents.EventMapWithInstance
+local EventSetWithInstance = _dataStructureWithEvents.EventSetWithInstance
+-- TODO: make events available for dynamic instances
 local function createUseEvent(_param)
 	local indicateUpdate = _param.indicateUpdate
-	local queues = EventMap.new()
-	local watchedEvents = EventSet.new()
-	local caches = EventMap.new()
+	local queues = EventMapWithInstance.new()
+	local watchedEvents = EventSetWithInstance.new()
+	local caches = EventMapWithInstance.new()
 	local lastUpdateId = -1
-	return function(updateId, event)
+	return function(updateId, instance, event)
 		if lastUpdateId ~= updateId then
 			caches:clear()
 			lastUpdateId = updateId
 		end
-		local cache = caches:get(event)
+		local cache = caches:get(instance, event)
 		if cache ~= nil then
 			return cache
 		end
-		if not watchedEvents:has(event) then
-			watchedEvents:add(event)
-			queues:set(event, {})
+		if not watchedEvents:has(instance, event) then
+			watchedEvents:add(instance, event)
+			queues:set(instance, event, {})
 			event:Connect(function(...)
 				local args = { ... }
-				local _exp = queues:get(event)
+				local _exp = queues:get(instance, event)
 				local _args = args
 				table.insert(_exp, _args)
 				indicateUpdate()
 			end)
-			caches:set(event, {})
+			caches:set(instance, event, {})
 			return {}
 		end
-		local queue = queues:get(event)
+		local queue = queues:get(instance, event)
 		if not (#queue == 0) then
-			queues:set(event, {})
+			queues:set(instance, event, {})
 		end
-		caches:set(event, queue)
+		caches:set(instance, event, queue)
 		return queue
 	end
 end
 local function createUseEventImmediately(_param)
 	local indicateUpdate = _param.indicateUpdate
-	local queues = EventMap.new()
-	local watchedEvents = EventSet.new()
-	local caches = EventMap.new()
+	local queues = EventMapWithInstance.new()
+	local watchedEvents = EventSetWithInstance.new()
+	local caches = EventMapWithInstance.new()
 	local lastUpdateId = -1
-	return function(updateId, event, callback)
+	return function(updateId, instance, event, callback)
 		if lastUpdateId ~= updateId then
 			caches:clear()
 			lastUpdateId = updateId
 		end
-		local cache = caches:get(event)
+		local cache = caches:get(instance, event)
 		if cache ~= nil then
 			return cache
 		end
-		if not watchedEvents:has(event) then
-			watchedEvents:add(event)
-			queues:set(event, {})
+		if not watchedEvents:has(instance, event) then
+			watchedEvents:add(instance, event)
+			queues:set(instance, event, {})
 			event:Connect(function(...)
 				local args = { ... }
-				local _exp = queues:get(event)
+				local _exp = queues:get(instance, event)
 				local _arg0 = callback(unpack(args))
 				table.insert(_exp, _arg0)
 				indicateUpdate()
 			end)
-			caches:set(event, {})
+			caches:set(instance, event, {})
 			return {}
 		end
-		local queue = queues:get(event)
+		local queue = queues:get(instance, event)
 		if not (#queue == 0) then
-			queues:set(event, {})
+			queues:set(instance, event, {})
 		end
-		caches:set(event, queue)
+		caches:set(instance, event, queue)
 		return queue
 	end
 end
