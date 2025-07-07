@@ -433,6 +433,13 @@ export class Covenant {
         return c;
     }
 
+    public worldTag() {
+        this.preventPostStartCall();
+        const c = this._world.component<undefined>();
+        this.undefinedStringifiedComponents.add(tostring(c));
+        return c;
+    }
+
     private worldInternalComponent<T extends defined>() {
         this.preventPostStartCall();
         return this._world.component<T>();
@@ -725,20 +732,14 @@ export class Covenant {
         });
     }
 
-    public defineEntitySource<T extends defined>({
+    public defineStaticEntity<T extends defined>({
         identityComponent,
         recipe,
         replicated,
     }: {
         replicated: boolean;
         identityComponent: Entity<T>;
-        recipe: (
-            updateId: number,
-            hooks: CovenantHooks,
-        ) => {
-            statesToCreate?: ReadonlyArray<T>;
-            entitiesToDelete?: ReadonlyArray<Entity>;
-        };
+        recipe: (updateId: number, hooks: CovenantHooks) => T[];
     }) {
         this.checkComponentDefined(identityComponent);
 
@@ -765,17 +766,10 @@ export class Covenant {
 
         let lastUpdateId = 0;
         const updater = () => {
-            const { statesToCreate, entitiesToDelete } = recipe(
-                ++lastUpdateId,
-                hooks,
-            );
-            statesToCreate?.forEach((state) => {
+            const states = recipe(++lastUpdateId, hooks);
+            states.forEach((state) => {
                 const entity = this.worldEntity();
                 this.worldSet(entity, identityComponent, state);
-            });
-            entitiesToDelete?.forEach((entity) => {
-                if (!this.worldHas(entity, identityComponent)) return;
-                this.worldDelete(entity);
             });
         };
 

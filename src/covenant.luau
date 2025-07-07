@@ -428,6 +428,14 @@ do
 		_undefinedStringifiedComponents[_arg0] = true
 		return c
 	end
+	function Covenant:worldTag()
+		self:preventPostStartCall()
+		local c = self._world:component()
+		local _undefinedStringifiedComponents = self.undefinedStringifiedComponents
+		local _arg0 = tostring(c)
+		_undefinedStringifiedComponents[_arg0] = true
+		return c
+	end
 	function Covenant:worldInternalComponent()
 		self:preventPostStartCall()
 		return self._world:component()
@@ -762,7 +770,7 @@ do
 			updater()
 		end)
 	end
-	function Covenant:defineEntitySource(_param)
+	function Covenant:defineStaticEntity(_param)
 		local identityComponent = _param.identityComponent
 		local recipe = _param.recipe
 		local replicated = _param.replicated
@@ -781,35 +789,16 @@ do
 		local lastUpdateId = 0
 		local updater = function()
 			lastUpdateId += 1
-			local _binding = recipe(lastUpdateId, hooks)
-			local statesToCreate = _binding.statesToCreate
-			local entitiesToDelete = _binding.entitiesToDelete
-			local _result = statesToCreate
-			if _result ~= nil then
-				-- ▼ ReadonlyArray.forEach ▼
-				local _callback = function(state)
-					local entity = self:worldEntity()
-					self:worldSet(entity, identityComponent, state)
-				end
-				for _k, _v in _result do
-					_callback(_v, _k - 1, _result)
-				end
-				-- ▲ ReadonlyArray.forEach ▲
+			local states = recipe(lastUpdateId, hooks)
+			-- ▼ ReadonlyArray.forEach ▼
+			local _callback = function(state)
+				local entity = self:worldEntity()
+				self:worldSet(entity, identityComponent, state)
 			end
-			local _result_1 = entitiesToDelete
-			if _result_1 ~= nil then
-				-- ▼ ReadonlyArray.forEach ▼
-				local _callback = function(entity)
-					if not self:worldHas(entity, identityComponent) then
-						return nil
-					end
-					self:worldDelete(entity)
-				end
-				for _k, _v in _result_1 do
-					_callback(_v, _k - 1, _result_1)
-				end
-				-- ▲ ReadonlyArray.forEach ▲
+			for _k, _v in states do
+				_callback(_v, _k - 1, states)
 			end
+			-- ▲ ReadonlyArray.forEach ▲
 		end
 		self:schedule(RunService.Heartbeat, function()
 			if not willUpdate then

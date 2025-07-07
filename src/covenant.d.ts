@@ -42,6 +42,7 @@ export declare class Covenant {
     subscribeComponent<T>(component: Entity<T>, subscriber: (entity: Entity, state: T | undefined, previousState: T | undefined) => void): () => void;
     private worldDelete;
     worldComponent<T extends defined>(): Entity<T>;
+    worldTag(): Entity<undefined>;
     private worldInternalComponent;
     private checkComponentDefined;
     private defineComponentNetworkBehavior;
@@ -60,13 +61,10 @@ export declare class Covenant {
         queriedComponents: Entity[][];
         recipe: (entity: Entity, lastChildrenStates: ReadonlyArray<T>, updateId: number, hooks: CovenantHooks) => ReadonlyArray<T>;
     }): void;
-    defineEntitySource<T extends defined>({ identityComponent, recipe, replicated, }: {
+    defineStaticEntity<T extends defined>({ identityComponent, recipe, replicated, }: {
         replicated: boolean;
         identityComponent: Entity<T>;
-        recipe: (updateId: number, hooks: CovenantHooks) => {
-            statesToCreate?: ReadonlyArray<T>;
-            entitiesToDelete?: ReadonlyArray<Entity>;
-        };
+        recipe: (updateId: number, hooks: CovenantHooks) => T[];
     }): void;
     private worldEntity;
     worldQuery<T extends Id[]>(...components: T): import("@rbxts/jecs").Query<import("@rbxts/jecs").InferComponents<T>>;
