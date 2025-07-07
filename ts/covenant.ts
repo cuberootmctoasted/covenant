@@ -739,7 +739,7 @@ export class Covenant {
     }: {
         replicated: boolean;
         identityComponent: Entity<T>;
-        recipe: (updateId: number, hooks: CovenantHooks) => T[];
+        recipe: () => T[];
     }) {
         this.checkComponentDefined(identityComponent);
 
@@ -749,34 +749,10 @@ export class Covenant {
             false,
         );
 
-        let willUpdate = true;
-        function indicateUpdate() {
-            willUpdate = true;
-        }
-
-        const hooks = createHooks({
-            indicateUpdate,
-            subscribeComponent: <T extends defined>(
-                component: Entity<T>,
-                subscriber: ComponentSubscriber<T>,
-            ) => {
-                this.subscribeComponent(component, subscriber);
-            },
-        });
-
-        let lastUpdateId = 0;
-        const updater = () => {
-            const states = recipe(++lastUpdateId, hooks);
-            states.forEach((state) => {
-                const entity = this.worldEntity();
-                this.worldSet(entity, identityComponent, state);
-            });
-        };
-
-        this.schedule(RunService.Heartbeat, () => {
-            if (!willUpdate) return;
-            willUpdate = false;
-            updater();
+        const states = recipe();
+        states.forEach((state) => {
+            const entity = this.worldEntity();
+            this.worldSet(entity, identityComponent, state);
         });
     }
 
