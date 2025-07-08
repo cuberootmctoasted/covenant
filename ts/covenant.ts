@@ -18,6 +18,7 @@ export type WorldChangesForPrediction = Map<
 >;
 
 export interface CovenantProps {
+    requestPayload: () => void;
     replicationSend: (
         player: Player,
         worldChanges: WorldChangesForReplication,
@@ -86,6 +87,7 @@ export class Covenant {
         ComponentPredictionValidator
     > = new Map();
 
+    private requestPayload: CovenantProps["requestPayload"];
     private replicationSend: CovenantProps["replicationSend"];
     private replicationConnect: CovenantProps["replicationConnect"];
     private replicationSendAll: CovenantProps["replicationSendAll"];
@@ -93,12 +95,14 @@ export class Covenant {
     private predictionConnect: CovenantProps["predictionConnect"];
 
     constructor({
+        requestPayload,
         replicationSend,
         replicationConnect,
         replicationSendAll,
         predictionSend,
         predictionConnect,
     }: CovenantProps) {
+        this.requestPayload = requestPayload;
         this.replicationSend = replicationSend;
         this.replicationConnect = replicationConnect;
         this.replicationSendAll = replicationSendAll;
@@ -334,6 +338,7 @@ export class Covenant {
                 });
             });
         });
+        this.requestPayload();
     }
 
     private preventPostStartCall() {
