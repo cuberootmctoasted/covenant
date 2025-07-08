@@ -19,6 +19,7 @@ export declare class Covenant {
     private undefinedStringifiedComponents;
     private replicatedStringifiedComponents;
     private predictedStringifiedComponents;
+    private internalStringifiedComponents;
     private started;
     private stringifiedComponentSubscribers;
     private stringifiedComponentValidators;
@@ -29,6 +30,7 @@ export declare class Covenant {
     private predictionConnect;
     constructor({ replicationSend, replicationConnect, replicationSendAll, predictionSend, predictionConnect, }: CovenantProps);
     private setupPredictionClient;
+    private forEachComponentChanges;
     private setupPredictionServer;
     private setupPrediction;
     private setupReplicationServer;
@@ -59,12 +61,12 @@ export declare class Covenant {
         childIdentityComponent: Entity<T>;
         getIdentifier: (state: T) => Discriminator;
         queriedComponents: Entity[][];
-        recipe: (entity: Entity, lastChildrenStates: ReadonlyArray<T>, updateId: number, hooks: CovenantHooks) => ReadonlyArray<T>;
+        recipe: (entity: Entity, lastChildrenStates: ReadonlySet<T>, updateId: number, hooks: CovenantHooks) => ReadonlySet<T>;
     }): void;
     defineStaticEntity<T extends defined>({ identityComponent, recipe, replicated, }: {
         replicated: boolean;
         identityComponent: Entity<T>;
-        recipe: (updateId: number, hooks: CovenantHooks) => T[];
+        recipe: () => T[];
     }): void;
     private worldEntity;
     worldQuery<T extends Id[]>(...components: T): import("@rbxts/jecs").Query<import("@rbxts/jecs").InferComponents<T>>;

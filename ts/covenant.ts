@@ -2,7 +2,7 @@ import { ChildOf, Entity, Id, InferComponent, pair, World } from "@rbxts/jecs";
 import { Players, RunService } from "@rbxts/services";
 import { CovenantHooks, createHooks, Discriminator } from "./hooks";
 import { Remove, Delete } from "./stringEnums";
-import { compareMaps, turnArrayWithIdentifierToMap } from "./helpers";
+import { compareMaps, turnSetWithIdentifierToMap } from "./helpers";
 import { EventMap } from "./dataStructureWithEvents";
 
 // Map<Entity, Delete | Map<Component, state | Remove>>
@@ -73,6 +73,7 @@ export class Covenant {
     private undefinedStringifiedComponents: Set<string> = new Set();
     private replicatedStringifiedComponents: Set<string> = new Set();
     private predictedStringifiedComponents: Set<string> = new Set();
+    private internalStringifiedComponents: Set<string> = new Set();
 
     private started = false;
 
@@ -121,47 +122,73 @@ export class Covenant {
         );
     }
 
+    private forEachComponentChanges(
+        player: Player,
+        worldReconciliation: WorldChangesForReplication,
+        componentChanges: Map<string, defined | Remove>,
+        stringifiedComponent: string,
+    ) {
+        const component = tonumber(stringifiedComponent) as Entity;
+        const validator =
+            this.stringifiedComponentValidators.get(stringifiedComponent);
+        if (!validator) return;
+        componentChanges.forEach((state, stringifiedEntity) => {
+            const entity = tonumber(stringifiedEntity) as Entity;
+            if (!this.worldContains(entity)) return;
+            const newState = state === Remove ? undefined : state;
+            const lastState = this.worldGet(entity, component);
+            const valid = validator(player, entity, newState, lastState);
+            if (valid) {
+                this.worldSet(entity, component, newState);
+            } else {
+                let entityReconciliations =
+                    worldReconciliation.get(stringifiedEntity);
+                assert(entityReconciliations !== Delete);
+                if (entityReconciliations === undefined) {
+                    entityReconciliations = new Map();
+                    worldReconciliation.set(
+                        stringifiedEntity,
+                        entityReconciliations,
+                    );
+                }
+                entityReconciliations.set(
+                    stringifiedComponent,
+                    this.worldGet(entity, component) ?? Remove,
+                );
+            }
+        });
+    }
+
     private setupPredictionServer() {
         this.predictionConnect((player, worldChanges) => {
             const worldReconciliation: WorldChangesForReplication = new Map();
 
             worldChanges.forEach((componentChanges, stringifiedComponent) => {
-                const component = tonumber(stringifiedComponent) as Entity;
-                const validator =
-                    this.stringifiedComponentValidators.get(
+                if (
+                    !this.internalStringifiedComponents.has(
                         stringifiedComponent,
-                    );
-                if (!validator) return;
-                componentChanges.forEach((state, stringifiedEntity) => {
-                    const entity = tonumber(stringifiedEntity) as Entity;
-                    if (!this.worldContains(entity)) return;
-                    const newState = state === Remove ? undefined : state;
-                    const lastState = this.worldGet(entity, component);
-                    const valid = validator(
-                        player,
-                        entity,
-                        newState,
-                        lastState,
-                    );
-                    if (valid) {
-                        this.worldSet(entity, component, newState);
-                    } else {
-                        let entityReconciliations =
-                            worldReconciliation.get(stringifiedEntity);
-                        assert(entityReconciliations !== Delete);
-                        if (entityReconciliations === undefined) {
-                            entityReconciliations = new Map();
-                            worldReconciliation.set(
-                                stringifiedEntity,
-                                entityReconciliations,
-                            );
-                        }
-                        entityReconciliations.set(
-                            stringifiedComponent,
-                            this.worldGet(entity, component) ?? Remove,
-                        );
-                    }
-                });
+                    )
+                )
+                    return;
+                this.forEachComponentChanges(
+                    player,
+                    worldReconciliation,
+                    componentChanges,
+                    stringifiedComponent,
+                );
+            });
+
+            worldChanges.forEach((componentChanges, stringifiedComponent) => {
+                if (
+                    this.internalStringifiedComponents.has(stringifiedComponent)
+                )
+                    return;
+                this.forEachComponentChanges(
+                    player,
+                    worldReconciliation,
+                    componentChanges,
+                    stringifiedComponent,
+                );
             });
 
             if (!worldReconciliation.isEmpty()) {
@@ -239,6 +266,28 @@ export class Covenant {
                     return;
                 }
                 entityData.forEach((state, stringifiedComponent) => {
+                    if (
+                        !this.internalStringifiedComponents.has(
+                            stringifiedComponent,
+                        )
+                    )
+                        return;
+                    const component = tonumber(
+                        stringifiedComponent,
+                    ) as Entity<defined>;
+                    if (state === Remove) {
+                        this.worldSet(entity, component, undefined, true);
+                    } else {
+                        this.worldSet(entity, component, state, true);
+                    }
+                });
+                entityData.forEach((state, stringifiedComponent) => {
+                    if (
+                        this.internalStringifiedComponents.has(
+                            stringifiedComponent,
+                        )
+                    )
+                        return;
                     const component = tonumber(
                         stringifiedComponent,
                     ) as Entity<defined>;
@@ -442,7 +491,9 @@ export class Covenant {
 
     private worldInternalComponent<T extends defined>() {
         this.preventPostStartCall();
-        return this._world.component<T>();
+        const c = this._world.component<T>();
+        this.internalStringifiedComponents.add(tostring(c));
+        return c;
     }
 
     private checkComponentDefined(component: Entity) {
@@ -582,21 +633,26 @@ export class Covenant {
         queriedComponents: Entity[][];
         recipe: (
             entity: Entity,
-            lastChildrenStates: ReadonlyArray<T>,
+            lastChildrenStates: ReadonlySet<T>,
             updateId: number,
             hooks: CovenantHooks,
-        ) => ReadonlyArray<T>;
+        ) => ReadonlySet<T>;
     }) {
         this.checkComponentDefined(childIdentityComponent);
 
         const parentEntityTrackerComponent =
             this.worldInternalComponent<Map<Discriminator, Entity>>();
-        const parentComponent = this.worldInternalComponent<ReadonlyArray<T>>();
+        const parentComponent = this.worldInternalComponent<ReadonlySet<T>>();
 
         this.defineComponentNetworkBehavior(
             parentComponent,
             replicated,
             predictionValidator,
+        );
+        this.defineComponentNetworkBehavior(
+            parentEntityTrackerComponent,
+            replicated,
+            false,
         );
 
         const queryParentComponent = this.worldQuery(parentComponent).cached();
@@ -641,12 +697,12 @@ export class Covenant {
         this.subscribeComponent(
             parentComponent,
             (entity, newState, lastState) => {
-                const lastStateMap = turnArrayWithIdentifierToMap(
-                    lastState ?? [],
+                const lastStateMap = turnSetWithIdentifierToMap(
+                    lastState ?? new ReadonlySet<T>(),
                     getIdentifier,
                 );
-                const newStateMap = turnArrayWithIdentifierToMap(
-                    newState ?? [],
+                const newStateMap = turnSetWithIdentifierToMap(
+                    newState ?? new ReadonlySet<T>(),
                     getIdentifier,
                 );
 
@@ -672,13 +728,13 @@ export class Covenant {
                 });
                 entriesChanged.forEach(({ key, value }) => {
                     const childEntity = entityTracker.get(key);
-                    assert(childEntity);
+                    assert(childEntity !== undefined);
                     assert(this.worldContains(childEntity));
                     this.worldSet(childEntity, childIdentityComponent, value);
                 });
                 keysRemoved.forEach((key) => {
                     const childEntity = entityTracker.get(key);
-                    assert(childEntity);
+                    assert(childEntity !== undefined);
                     assert(this.worldContains(childEntity));
                     this.worldDelete(childEntity);
                     entityTracker.delete(key);
@@ -702,7 +758,7 @@ export class Covenant {
                     unhandledStringifiedEntities.delete(stringifiedEntity);
 
                     const lastState =
-                        this.worldGet(entity, parentComponent) ?? [];
+                        this.worldGet(entity, parentComponent) ?? new Set();
                     const newState = recipe(entity, lastState, updateId, hooks);
                     this.worldSet(entity, parentComponent, newState);
                 }
