@@ -17,7 +17,7 @@ export declare class EventMapWithInstance<T extends defined> {
     set(instance: Instance, key: RBXScriptSignal, value: T): this;
     delete(instance: Instance, key: RBXScriptSignal): boolean;
     clear(): void;
-    deletedInstance(instance: Instance): boolean;
+    deleteInstance(instance: Instance): boolean;
     isEmpty(): boolean;
     isInstanceEmpty(instance: Instance): boolean;
     forEach(callbackfn: (value: T, key: RBXScriptSignal) => void): void;

@@ -1,6 +1,6 @@
 -- Compiled with roblox-ts v3.0.0
 -- Manually modified
-local function turnSetWithIdentifierToMap(set, getIdentifier)
+local function turnArrayWithIdentifierToMap(array, getIdentifier)
 	local newMap = {}
 	-- ▼ ReadonlyArray.forEach ▼
 	local _callback = function(value)
@@ -8,7 +8,7 @@ local function turnSetWithIdentifierToMap(set, getIdentifier)
 		local _value = value
 		newMap[identifier] = _value
 	end
-	for _v, _ in set do
+	for _k, _v in array do
 		_callback(_v)
 	end
 	-- ▲ ReadonlyArray.forEach ▲
@@ -66,6 +66,6 @@ local function compareMaps(previousMap, newMap)
 	}
 end
 return {
-	turnSetWithIdentifierToMap = turnSetWithIdentifierToMap,
+	turnArrayWithIdentifierToMap = turnArrayWithIdentifierToMap,
 	compareMaps = compareMaps,
 }

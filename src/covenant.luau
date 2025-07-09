@@ -1,5 +1,6 @@
 -- Compiled with roblox-ts v3.0.0
 local TS = _G[script]
+local exports = {}
 local _jecs = TS.import(script, TS.getModule(script, "@rbxts", "jecs").jecs)
 local ChildOf = _jecs.ChildOf
 local pair = _jecs.pair
@@ -11,10 +12,11 @@ local createHooks = TS.import(script, script.Parent, "hooks").createHooks
 local _stringEnums = TS.import(script, script.Parent, "stringEnums")
 local Remove = _stringEnums.Remove
 local Delete = _stringEnums.Delete
-local _helpers = TS.import(script, script.Parent, "helpers")
-local compareMaps = _helpers.compareMaps
-local turnSetWithIdentifierToMap = _helpers.turnSetWithIdentifierToMap
 local EventMap = TS.import(script, script.Parent, "dataStructureWithEvents").EventMap
+local BIG_PRIORITY = 10000000
+for _k, _v in TS.import(script, TS.getModule(script, "@rbxts", "jecs").jecs) or {} do
+	exports[_k] = _v
+end
 -- Map<Entity, Delete | Map<Component, state | Remove>>
 -- Map<Component, Map<Entity, state | Remove>>
 local function createWorldWithRange(minClientEntity, maxClientEntity)
@@ -40,6 +42,9 @@ do
 		return self:constructor(...) or self
 	end
 	function Covenant:constructor(_param)
+		local logging = _param.logging
+		local requestPayloadSend = _param.requestPayloadSend
+		local requestPayloadConnect = _param.requestPayloadConnect
 		local replicationSend = _param.replicationSend
 		local replicationConnect = _param.replicationConnect
 		local replicationSendAll = _param.replicationSendAll
@@ -52,10 +57,12 @@ do
 		self.undefinedStringifiedComponents = {}
 		self.replicatedStringifiedComponents = {}
 		self.predictedStringifiedComponents = {}
-		self.internalStringifiedComponents = {}
 		self.started = false
 		self.stringifiedComponentSubscribers = {}
 		self.stringifiedComponentValidators = {}
+		self.logging = logging
+		self.requestPayloadSend = requestPayloadSend
+		self.requestPayloadConnect = requestPayloadConnect
 		self.replicationSend = replicationSend
 		self.replicationConnect = replicationConnect
 		self.replicationSendAll = replicationSendAll
@@ -63,6 +70,12 @@ do
 		self.predictionConnect = predictionConnect
 		self:setupReplication()
 		self:setupPrediction()
+	end
+	function Covenant:enableLogging()
+		self.logging = true
+	end
+	function Covenant:disableLogging()
+		self.logging = false
 	end
 	function Covenant:setupPredictionClient()
 		self:schedule(RunService.Heartbeat, function()
@@ -72,7 +85,7 @@ do
 			local currentWorldChanges = self.worldChangesForPrediction
 			self.worldChangesForPrediction = {}
 			self.predictionSend(currentWorldChanges)
-		end, math.huge)
+		end, BIG_PRIORITY + 1)
 	end
 	function Covenant:forEachComponentChanges(player, worldReconciliation, componentChanges, stringifiedComponent)
 		local component = tonumber(stringifiedComponent)
@@ -121,38 +134,38 @@ do
 		-- ▲ ReadonlyMap.forEach ▲
 	end
 	function Covenant:setupPredictionServer()
+		local changes = {}
 		self.predictionConnect(function(player, worldChanges)
-			local worldReconciliation = {}
-			-- ▼ ReadonlyMap.forEach ▼
-			local _callback = function(componentChanges, stringifiedComponent)
-				local _internalStringifiedComponents = self.internalStringifiedComponents
-				local _stringifiedComponent = stringifiedComponent
-				if not (_internalStringifiedComponents[_stringifiedComponent] ~= nil) then
-					return nil
-				end
-				self:forEachComponentChanges(player, worldReconciliation, componentChanges, stringifiedComponent)
-			end
-			for _k, _v in worldChanges do
-				_callback(_v, _k, worldChanges)
-			end
-			-- ▲ ReadonlyMap.forEach ▲
-			-- ▼ ReadonlyMap.forEach ▼
-			local _callback_1 = function(componentChanges, stringifiedComponent)
-				local _internalStringifiedComponents = self.internalStringifiedComponents
-				local _stringifiedComponent = stringifiedComponent
-				if _internalStringifiedComponents[_stringifiedComponent] ~= nil then
-					return nil
-				end
-				self:forEachComponentChanges(player, worldReconciliation, componentChanges, stringifiedComponent)
-			end
-			for _k, _v in worldChanges do
-				_callback_1(_v, _k, worldChanges)
-			end
-			-- ▲ ReadonlyMap.forEach ▲
-			if not (next(worldReconciliation) == nil) then
-				self.replicationSend(player, worldReconciliation)
-			end
+			local _arg0 = { player, worldChanges }
+			table.insert(changes, _arg0)
 		end)
+		self:schedule(RunService.Heartbeat, function()
+			if #changes == 0 then
+				return nil
+			end
+			-- ▼ ReadonlyArray.forEach ▼
+			local _callback = function(_param)
+				local player = _param[1]
+				local worldChanges = _param[2]
+				local worldReconciliation = {}
+				-- ▼ ReadonlyMap.forEach ▼
+				local _callback_1 = function(componentChanges, stringifiedComponent)
+					self:forEachComponentChanges(player, worldReconciliation, componentChanges, stringifiedComponent)
+				end
+				for _k, _v in worldChanges do
+					_callback_1(_v, _k, worldChanges)
+				end
+				-- ▲ ReadonlyMap.forEach ▲
+				if not (next(worldReconciliation) == nil) then
+					self.replicationSend(player, worldReconciliation)
+				end
+			end
+			for _k, _v in changes do
+				_callback(_v, _k - 1, changes)
+			end
+			-- ▲ ReadonlyArray.forEach ▲
+			table.clear(changes)
+		end, BIG_PRIORITY)
 	end
 	function Covenant:setupPrediction()
 		if RunService:IsClient() then
@@ -182,10 +195,10 @@ do
 				end
 				-- ▲ ReadonlyArray.forEach ▲
 			end
-		end, math.huge)
+		end, BIG_PRIORITY + 1)
 	end
 	function Covenant:setupReplicationPayload()
-		Players.PlayerAdded:Connect(function(player)
+		self.requestPayloadConnect(function(player)
 			task.defer(function()
 				if not player:IsDescendantOf(Players) then
 					return nil
@@ -220,56 +233,49 @@ do
 		end)
 	end
 	function Covenant:setupReplicationClient()
+		local changes = {}
 		self.replicationConnect(function(worldChanges)
-			-- ▼ ReadonlyMap.forEach ▼
-			local _callback = function(entityData, stringifiedEntity)
-				local entity = tonumber(stringifiedEntity)
-				if entityData == Delete then
-					self:worldDelete(entity)
-					return nil
-				end
-				-- ▼ ReadonlyMap.forEach ▼
-				local _callback_1 = function(state, stringifiedComponent)
-					local _internalStringifiedComponents = self.internalStringifiedComponents
-					local _stringifiedComponent = stringifiedComponent
-					if not (_internalStringifiedComponents[_stringifiedComponent] ~= nil) then
-						return nil
-					end
-					local component = tonumber(stringifiedComponent)
-					if state == Remove then
-						self:worldSet(entity, component, nil, true)
-					else
-						self:worldSet(entity, component, state, true)
-					end
-				end
-				for _k, _v in entityData do
-					_callback_1(_v, _k, entityData)
-				end
-				-- ▲ ReadonlyMap.forEach ▲
-				-- ▼ ReadonlyMap.forEach ▼
-				local _callback_2 = function(state, stringifiedComponent)
-					local _internalStringifiedComponents = self.internalStringifiedComponents
-					local _stringifiedComponent = stringifiedComponent
-					if _internalStringifiedComponents[_stringifiedComponent] ~= nil then
-						return nil
-					end
-					local component = tonumber(stringifiedComponent)
-					if state == Remove then
-						self:worldSet(entity, component, nil, true)
-					else
-						self:worldSet(entity, component, state, true)
-					end
-				end
-				for _k, _v in entityData do
-					_callback_2(_v, _k, entityData)
-				end
-				-- ▲ ReadonlyMap.forEach ▲
-			end
-			for _k, _v in worldChanges do
-				_callback(_v, _k, worldChanges)
-			end
-			-- ▲ ReadonlyMap.forEach ▲
+			local _worldChanges = worldChanges
+			table.insert(changes, _worldChanges)
 		end)
+		self:schedule(RunService.Heartbeat, function()
+			if #changes == 0 then
+				return nil
+			end
+			-- ▼ ReadonlyArray.forEach ▼
+			local _callback = function(worldChanges)
+				-- ▼ ReadonlyMap.forEach ▼
+				local _callback_1 = function(entityData, stringifiedEntity)
+					local entity = tonumber(stringifiedEntity)
+					if entityData == Delete then
+						self:worldDelete(entity)
+						return nil
+					end
+					-- ▼ ReadonlyMap.forEach ▼
+					local _callback_2 = function(state, stringifiedComponent)
+						local component = tonumber(stringifiedComponent)
+						if state == Remove then
+							self:worldSet(entity, component, nil, true)
+						else
+							self:worldSet(entity, component, state, true)
+						end
+					end
+					for _k, _v in entityData do
+						_callback_2(_v, _k, entityData)
+					end
+					-- ▲ ReadonlyMap.forEach ▲
+				end
+				for _k, _v in worldChanges do
+					_callback_1(_v, _k, worldChanges)
+				end
+				-- ▲ ReadonlyMap.forEach ▲
+			end
+			for _k, _v in changes do
+				_callback(_v, _k - 1, changes)
+			end
+			-- ▲ ReadonlyArray.forEach ▲
+			table.clear(changes)
+		end, BIG_PRIORITY)
 	end
 	function Covenant:setupReplication()
 		if RunService:IsServer() then
@@ -314,6 +320,9 @@ do
 				-- ▲ ReadonlyArray.forEach ▲
 			end)
 		end)
+		if RunService:IsClient() then
+			self.requestPayloadSend()
+		end
 	end
 	function Covenant:preventPostStartCall()
 		local _arg0 = not self.started
@@ -351,6 +360,9 @@ do
 			self._world:remove(entity, component)
 		else
 			self._world:set(entity, component, newState)
+		end
+		if self.logging and RunService:IsStudio() then
+			print(`{entity}.{component}:{lastState}->{newState}`)
 		end
 		local _stringifiedComponentSubscribers = self.stringifiedComponentSubscribers
 		local _arg0 = tostring(component)
@@ -473,6 +485,9 @@ do
 		local _undefinedStringifiedComponents = self.undefinedStringifiedComponents
 		local _arg0 = tostring(c)
 		_undefinedStringifiedComponents[_arg0] = true
+		if RunService:IsStudio() and self.logging then
+			print(`{(debug.info(2, "sl"))}:{c}`)
+		end
 		return c
 	end
 	function Covenant:worldTag()
@@ -481,14 +496,6 @@ do
 		local _undefinedStringifiedComponents = self.undefinedStringifiedComponents
 		local _arg0 = tostring(c)
 		_undefinedStringifiedComponents[_arg0] = true
-		return c
-	end
-	function Covenant:worldInternalComponent()
-		self:preventPostStartCall()
-		local c = self._world:component()
-		local _internalStringifiedComponents = self.internalStringifiedComponents
-		local _arg0 = tostring(c)
-		_internalStringifiedComponents[_arg0] = true
 		return c
 	end
 	function Covenant:checkComponentDefined(component)
@@ -517,7 +524,7 @@ do
 			_stringifiedComponentValidators[_arg0_1] = _predictionValidator
 		end
 	end
-	function Covenant:defineComputedComponent(_param)
+	function Covenant:defineComponent(_param)
 		local component = _param.component
 		local queriedComponents = _param.queriedComponents
 		local recipe = _param.recipe
@@ -633,19 +640,12 @@ do
 			updater()
 		end)
 	end
-	function Covenant:defineManagedChildren(_param)
-		local childIdentityComponent = _param.childIdentityComponent
-		local getIdentifier = _param.getIdentifier
-		local queriedComponents = _param.queriedComponents
+	function Covenant:defineIdentity(_param)
+		local identityComponent = _param.identityComponent
 		local recipe = _param.recipe
 		local replicated = _param.replicated
-		local predictionValidator = _param.predictionValidator
-		self:checkComponentDefined(childIdentityComponent)
-		local parentEntityTrackerComponent = self:worldInternalComponent()
-		local parentComponent = self:worldInternalComponent()
-		self:defineComponentNetworkBehavior(parentComponent, replicated, predictionValidator)
-		self:defineComponentNetworkBehavior(parentEntityTrackerComponent, replicated, false)
-		local queryParentComponent = self:worldQuery(parentComponent):cached()
+		self:checkComponentDefined(identityComponent)
+		self:defineComponentNetworkBehavior(identityComponent, replicated, false)
 		local willUpdate = true
 		local function indicateUpdate()
 			willUpdate = true
@@ -656,165 +656,57 @@ do
 				self:subscribeComponent(component, subscriber)
 			end,
 		})
-		-- ▼ ReadonlyArray.map ▼
-		local _newValue = table.create(#queriedComponents)
-		local _callback = function(components)
-			return self:worldQuery(unpack(components)):cached()
-		end
-		for _k, _v in queriedComponents do
-			_newValue[_k] = _callback(_v, _k - 1, queriedComponents)
-		end
-		-- ▲ ReadonlyArray.map ▲
-		local queries = _newValue
-		local _array = {}
-		local _length = #_array
-		-- ▼ ReadonlyArray.reduce ▼
-		local _result = {}
-		local _callback_1 = function(accum, components)
-			-- ▼ ReadonlyArray.forEach ▼
-			local _callback_2 = function(component)
-				local stringifiedComponent = tostring(component)
-				accum[stringifiedComponent] = true
+		local entities = {}
+		self:subscribeComponent(identityComponent, function(entity, state, prevState)
+			if prevState ~= nil then
+				local _prevState = prevState
+				entities[_prevState] = nil
 			end
-			for _k, _v in components do
-				_callback_2(_v, _k - 1, components)
+			if state ~= nil then
+				local _state = state
+				local _entity = entity
+				entities[_state] = _entity
 			end
-			-- ▲ ReadonlyArray.forEach ▲
-			return accum
-		end
-		for _i = 1, #queriedComponents do
-			_result = _callback_1(_result, queriedComponents[_i], _i - 1, queriedComponents)
-		end
-		-- ▲ ReadonlyArray.reduce ▲
-		for _v in _result do
-			_length += 1
-			_array[_length] = _v
-		end
-		-- ▼ ReadonlyArray.map ▼
-		local _newValue_1 = table.create(#_array)
-		local _callback_2 = function(stringifiedComponent)
-			return tonumber(stringifiedComponent)
-		end
-		for _k, _v in _array do
-			_newValue_1[_k] = _callback_2(_v, _k - 1, _array)
-		end
-		-- ▲ ReadonlyArray.map ▲
-		-- ▼ ReadonlyArray.forEach ▼
-		local _callback_3 = function(component)
-			self:subscribeComponent(component, indicateUpdate)
-		end
-		for _k, _v in _newValue_1 do
-			_callback_3(_v, _k - 1, _newValue_1)
-		end
-		-- ▲ ReadonlyArray.forEach ▲
-		local lastUpdateId = 0
-		self:subscribeComponent(parentComponent, function(entity, newState, lastState)
-			local lastStateMap = turnSetWithIdentifierToMap(lastState or {}, getIdentifier)
-			local newStateMap = turnSetWithIdentifierToMap(newState or {}, getIdentifier)
-			local entityTracker = self:worldGet(entity, parentEntityTrackerComponent)
-			if entityTracker == nil then
-				entityTracker = {}
-				self:worldSet(entity, parentEntityTrackerComponent, entityTracker)
-			end
-			local _binding = compareMaps(lastStateMap, newStateMap)
-			local entriesChanged = _binding.entriesChanged
-			local entriesAdded = _binding.entriesAdded
-			local keysRemoved = _binding.keysRemoved
-			-- ▼ ReadonlyArray.forEach ▼
-			local _callback_4 = function(_param_1)
-				local key = _param_1.key
-				local value = _param_1.value
-				local childEntity = self:worldEntity()
-				entityTracker[key] = childEntity
-				self:worldSet(childEntity, childIdentityComponent, value)
-				self._world:add(childEntity, pair(ChildOf, entity))
-			end
-			for _k, _v in entriesAdded do
-				_callback_4(_v, _k - 1, entriesAdded)
-			end
-			-- ▲ ReadonlyArray.forEach ▲
-			-- ▼ ReadonlyArray.forEach ▼
-			local _callback_5 = function(_param_1)
-				local key = _param_1.key
-				local value = _param_1.value
-				local childEntity = entityTracker[key]
-				local _arg0 = childEntity ~= nil
-				assert(_arg0)
-				local _arg0_1 = self:worldContains(childEntity)
-				assert(_arg0_1)
-				self:worldSet(childEntity, childIdentityComponent, value)
-			end
-			for _k, _v in entriesChanged do
-				_callback_5(_v, _k - 1, entriesChanged)
-			end
-			-- ▲ ReadonlyArray.forEach ▲
-			-- ▼ ReadonlyArray.forEach ▼
-			local _callback_6 = function(key)
-				local _entityTracker = entityTracker
-				local _key = key
-				local childEntity = _entityTracker[_key]
-				local _arg0 = childEntity ~= nil
-				assert(_arg0)
-				local _arg0_1 = self:worldContains(childEntity)
-				assert(_arg0_1)
-				self:worldDelete(childEntity)
-				local _entityTracker_1 = entityTracker
-				local _key_1 = key
-				_entityTracker_1[_key_1] = nil
-			end
-			for _k, _v in keysRemoved do
-				_callback_6(_v, _k - 1, keysRemoved)
-			end
-			-- ▲ ReadonlyArray.forEach ▲
 		end)
+		local lastUpdateId = 0
 		local updater = function()
 			lastUpdateId += 1
 			local updateId = lastUpdateId
-			local unhandledStringifiedEntities = {}
-			local handledStringifiedEntities = {}
-			for entity in queryParentComponent do
-				local _arg0 = tostring(entity)
-				unhandledStringifiedEntities[_arg0] = true
+			local modifiers = recipe(entities, updateId, hooks)
+			if modifiers == nil then
+				return nil
 			end
-			-- ▼ ReadonlyArray.forEach ▼
-			local _callback_4 = function(query)
-				for entity in query do
-					local stringifiedEntity = tostring(entity)
-					if handledStringifiedEntities[stringifiedEntity] ~= nil then
-						continue
-					end
-					handledStringifiedEntities[stringifiedEntity] = true
-					unhandledStringifiedEntities[stringifiedEntity] = nil
-					local lastState = self:worldGet(entity, parentComponent) or {}
-					local newState = recipe(entity, lastState, updateId, hooks)
-					self:worldSet(entity, parentComponent, newState)
+			local _binding = modifiers
+			local statesToCreate = _binding.statesToCreate
+			local statesToDelete = _binding.statesToDelete
+			local _result = statesToCreate
+			if _result ~= nil then
+				-- ▼ ReadonlyArray.forEach ▼
+				local _callback = function(state)
+					local entity = self:worldEntity()
+					self:worldSet(entity, identityComponent, state)
 				end
-			end
-			for _k, _v in queries do
-				_callback_4(_v, _k - 1, queries)
-			end
-			-- ▲ ReadonlyArray.forEach ▲
-			-- ▼ ReadonlySet.forEach ▼
-			local _callback_5 = function(stringifiedEntity)
-				local entity = tonumber(stringifiedEntity)
-				local children = self:worldGet(entity, parentEntityTrackerComponent)
-				if children ~= nil then
-					-- ▼ ReadonlyMap.forEach ▼
-					local _callback_6 = function(childEntity)
-						self:worldDelete(childEntity)
-					end
-					for _k, _v in children do
-						_callback_6(_v, _k, children)
-					end
-					-- ▲ ReadonlyMap.forEach ▲
+				for _k, _v in _result do
+					_callback(_v, _k - 1, _result)
 				end
-				self:worldSet(entity, parentComponent, nil)
-				self:worldSet(entity, parentEntityTrackerComponent, nil)
+				-- ▲ ReadonlyArray.forEach ▲
 			end
-			for _v in unhandledStringifiedEntities do
-				_callback_5(_v, _v, unhandledStringifiedEntities)
+			local _result_1 = statesToDelete
+			if _result_1 ~= nil then
+				-- ▼ ReadonlyArray.forEach ▼
+				local _callback = function(state)
+					local _state = state
+					local entity = entities[_state]
+					if entity == nil then
+						return nil
+					end
+					self:worldDelete(entity)
+				end
+				for _k, _v in _result_1 do
+					_callback(_v, _k - 1, _result_1)
+				end
+				-- ▲ ReadonlyArray.forEach ▲
 			end
-			-- ▲ ReadonlySet.forEach ▲
 		end
 		self:schedule(RunService.Heartbeat, function()
 			if not willUpdate then
@@ -823,23 +715,6 @@ do
 			willUpdate = false
 			updater()
 		end)
-	end
-	function Covenant:defineStaticEntity(_param)
-		local identityComponent = _param.identityComponent
-		local recipe = _param.recipe
-		local replicated = _param.replicated
-		self:checkComponentDefined(identityComponent)
-		self:defineComponentNetworkBehavior(identityComponent, replicated, false)
-		local states = recipe()
-		-- ▼ ReadonlyArray.forEach ▼
-		local _callback = function(state)
-			local entity = self:worldEntity()
-			self:worldSet(entity, identityComponent, state)
-		end
-		for _k, _v in states do
-			_callback(_v, _k - 1, states)
-		end
-		-- ▲ ReadonlyArray.forEach ▲
 	end
 	function Covenant:worldEntity()
 		return self._world:entity()
@@ -860,6 +735,5 @@ do
 		return self._world:contains(entity)
 	end
 end
-return {
-	Covenant = Covenant,
-}
+exports.Covenant = Covenant
+return exports

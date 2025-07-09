@@ -1,8 +1,5 @@
 import { Entity } from "@rbxts/jecs";
-import {
-    EventMapWithInstance,
-    EventSetWithInstance,
-} from "./dataStructureWithEvents";
+import { EventMapWithInstance, EventSetWithInstance } from "./dataStructureWithEvents";
 
 type AsyncResult<T = unknown> = {
     completed: boolean;
@@ -47,11 +44,7 @@ export interface CovenantHooks {
         dependencies: unknown[],
         discriminator: Discriminator,
     ) => T;
-    useChange: (
-        updateId: number,
-        dependencies: unknown[],
-        discriminator: Discriminator,
-    ) => boolean;
+    useChange: (updateId: number, dependencies: unknown[], discriminator: Discriminator) => boolean;
     useInterval: (
         updateId: number,
         seconds: number,
@@ -64,17 +57,11 @@ interface CovenantHooksProps {
     indicateUpdate: () => void;
     subscribeComponent: <T extends defined>(
         component: Entity<T>,
-        subscriber: (
-            entity: Entity,
-            state: T | undefined,
-            previousState: T | undefined,
-        ) => void,
+        subscriber: (entity: Entity, state: T | undefined, previousState: T | undefined) => void,
     ) => void;
 }
 
-function createUseEvent({
-    indicateUpdate,
-}: CovenantHooksProps): CovenantHooks["useEvent"] {
+function createUseEvent({ indicateUpdate }: CovenantHooksProps): CovenantHooks["useEvent"] {
     const queues: EventMapWithInstance<defined[]> = new EventMapWithInstance();
     const watchedEvents: EventSetWithInstance = new EventSetWithInstance();
     const caches: EventMapWithInstance<defined> = new EventMapWithInstance();
@@ -155,10 +142,8 @@ function createUseComponentChange({
     subscribeComponent,
     indicateUpdate: update,
 }: CovenantHooksProps): CovenantHooks["useComponentChange"] {
-    const queues: Map<
-        string,
-        { entity: Entity; state: unknown; previousState: unknown }[]
-    > = new Map();
+    const queues: Map<string, { entity: Entity; state: unknown; previousState: unknown }[]> =
+        new Map();
     const watchedStringifiedComponents: Set<string> = new Set();
     const caches: Map<string, defined> = new Map();
     let lastUpdateId = -1;
@@ -187,9 +172,7 @@ function createUseComponentChange({
             watchedStringifiedComponents.add(stringifiedComponent);
             queues.set(stringifiedComponent, []);
             subscribeComponent(component, (entity, state, previousState) => {
-                queues
-                    .get(stringifiedComponent)!
-                    .push({ entity, state, previousState });
+                queues.get(stringifiedComponent)!.push({ entity, state, previousState });
                 update();
             });
             caches.set(stringifiedComponent, []);
@@ -219,11 +202,7 @@ function equalsDependencies(a: unknown[], b: unknown[]) {
     return true;
 }
 
-function executeThread<T = unknown>(
-    res: AsyncResult<T>,
-    asnycFn: () => T,
-    update: () => void,
-) {
+function executeThread<T = unknown>(res: AsyncResult<T>, asnycFn: () => T, update: () => void) {
     res.completed = false;
     const [sucess, errMsg] = pcall(() => {
         res.value = asnycFn();
@@ -235,9 +214,7 @@ function executeThread<T = unknown>(
     update();
 }
 
-function createUseAsync({
-    indicateUpdate,
-}: CovenantHooksProps): CovenantHooks["useAsync"] {
+function createUseAsync({ indicateUpdate }: CovenantHooksProps): CovenantHooks["useAsync"] {
     const storage: Map<
         Discriminator,
         {
@@ -288,12 +265,7 @@ function createUseAsync({
                 value: undefined,
             };
             const newThread = coroutine.create(executeThread);
-            coroutine.resume(
-                newThread,
-                newResult,
-                asnycFactory,
-                indicateUpdate,
-            );
+            coroutine.resume(newThread, newResult, asnycFactory, indicateUpdate);
             storage.set(discriminator, {
                 lastDependencies: dependencies,
                 thread: newThread,
@@ -393,9 +365,7 @@ function createUseChange(): CovenantHooks["useChange"] {
     };
 }
 
-function createUseInterval({
-    indicateUpdate,
-}: CovenantHooksProps): CovenantHooks["useInterval"] {
+function createUseInterval({ indicateUpdate }: CovenantHooksProps): CovenantHooks["useInterval"] {
     const nextClocks: Map<Discriminator, number> = new Map();
     const caches: Map<Discriminator, defined> = new Map();
     let lastUpdateId = -1;

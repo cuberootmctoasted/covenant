@@ -20,25 +20,15 @@ export class EventMap<T extends defined> {
         this.stringifiedEventToValue.clear();
     }
     isEmpty(): boolean {
-        return (
-            this.stringifiedEventToEvent.isEmpty() &&
-            this.stringifiedEventToValue.isEmpty()
-        );
+        return this.stringifiedEventToEvent.isEmpty() && this.stringifiedEventToValue.isEmpty();
     }
     forEach(callbackfn: (value: T, key: RBXScriptSignal) => void): void {
         this.stringifiedEventToValue.forEach((value, stringifiedEvent) => {
-            callbackfn(
-                value,
-                this.stringifiedEventToEvent.get(stringifiedEvent)!,
-            );
+            callbackfn(value, this.stringifiedEventToEvent.get(stringifiedEvent)!);
         });
     }
     size(): number {
-        return (
-            (this.stringifiedEventToValue.size() +
-                this.stringifiedEventToValue.size()) /
-            2
-        );
+        return (this.stringifiedEventToValue.size() + this.stringifiedEventToValue.size()) / 2;
     }
     has(key: RBXScriptSignal): boolean {
         const stringifiedEvent = tostring(key);
@@ -61,6 +51,9 @@ export class EventMapWithInstance<T extends defined> {
         if (eventMap === undefined) {
             eventMap = new EventMap<T>();
             this.instanceEventMaps.set(instance, eventMap);
+            instance.Destroying.Once(() => {
+                this.deleteInstance(instance);
+            });
         }
         eventMap.set(key, value);
         return this;
@@ -75,7 +68,7 @@ export class EventMapWithInstance<T extends defined> {
     clear(): void {
         this.instanceEventMaps.clear();
     }
-    deletedInstance(instance: Instance): boolean {
+    deleteInstance(instance: Instance): boolean {
         return this.instanceEventMaps.delete(instance);
     }
     isEmpty(): boolean {
@@ -160,6 +153,9 @@ export class EventSetWithInstance {
         if (eventSet === undefined) {
             eventSet = new EventSet();
             this.instanceEventSets.set(instance, eventSet);
+            instance.Destroying.Once(() => {
+                this.deleteInstance(instance);
+            });
         }
         eventSet.add(value);
         return this;

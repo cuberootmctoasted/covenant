@@ -114,6 +114,9 @@ do
 			local _instance_1 = instance
 			local _eventMap = eventMap
 			_instanceEventMaps_1[_instance_1] = _eventMap
+			instance.Destroying:Once(function()
+				self:deleteInstance(instance)
+			end)
 		end
 		eventMap:set(key, value)
 		return self
@@ -130,7 +133,7 @@ do
 	function EventMapWithInstance:clear()
 		table.clear(self.instanceEventMaps)
 	end
-	function EventMapWithInstance:deletedInstance(instance)
+	function EventMapWithInstance:deleteInstance(instance)
 		local _instanceEventMaps = self.instanceEventMaps
 		local _instance = instance
 		-- ▼ Map.delete ▼
@@ -285,6 +288,9 @@ do
 			local _instance_1 = instance
 			local _eventSet = eventSet
 			_instanceEventSets_1[_instance_1] = _eventSet
+			instance.Destroying:Once(function()
+				self:deleteInstance(instance)
+			end)
 		end
 		eventSet:add(value)
 		return self

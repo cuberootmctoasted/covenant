@@ -1,13 +1,10 @@
 import { Discriminator } from "./hooks";
 
-export declare function turnSetWithIdentifierToMap<T extends defined>(
-    set: ReadonlySet<T>,
+export declare function turnArrayWithIdentifierToMap<T extends defined>(
+    array: ReadonlyArray<T>,
     getIdentifier: (state: T) => Discriminator,
 ): Map<defined, T>;
-export declare function compareMaps<
-    TKey extends Discriminator,
-    TValue extends defined,
->(
+export declare function compareMaps<TKey extends Discriminator, TValue extends defined>(
     previousMap: ReadonlyMap<TKey, TValue>,
     newMap: ReadonlyMap<TKey, TValue>,
 ): {
