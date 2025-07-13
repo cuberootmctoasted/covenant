@@ -1,8 +1,7 @@
-import { ChildOf, component, Entity, Id, InferComponent, pair, World } from "@rbxts/jecs";
+import { ChildOf, Entity, Id, InferComponent, pair, World } from "@rbxts/jecs";
 import { Players, RunService } from "@rbxts/services";
 import { CovenantHooks, createHooks, Discriminator } from "./hooks";
 import { Remove, Delete } from "./stringEnums";
-import { compareMaps, turnArrayWithIdentifierToMap } from "./helpers";
 import { EventMap } from "./dataStructureWithEvents";
 
 const BIG_PRIORITY = 10000000;
