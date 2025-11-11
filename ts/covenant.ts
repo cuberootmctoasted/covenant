@@ -329,6 +329,9 @@ export class Covenant {
         doNotReconcile = false,
     ) {
         if (!this.worldContains(entity)) {
+            if (!RunService.IsClient()) {
+                return;
+            }
             this._world.entity(entity);
         }
         const lastState = this.worldGet(entity, component);
