@@ -91,6 +91,14 @@ export class Covenant {
         this.setupPrediction();
     }
 
+    public getClientEntity(entity: Entity) {
+        return this.serverToClientEntityMap.get(tostring(entity))
+    }
+
+    public getServerEntity(entity: Entity) {
+        return this.clientToServerEntityMap.get(tostring(entity))
+    }
+
     private logging: boolean;
 
     public enableLogging() {

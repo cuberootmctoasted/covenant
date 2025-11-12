@@ -1,6 +1,6 @@
 {
     "name": "@rbxts/covenant",
-    "version": "2.1.0",
+    "version": "2.1.1",
     "main": "src/init.luau",
     "scripts": {
         "build": "rbxtsc",
@@ -29,7 +29,7 @@
     },
     "devDependencies": {
         "@rbxts/compiler-types": "^3.0.0-types.0",
-        "@rbxts/covenant": "^2.1.0",
+        "@rbxts/covenant": "^2.1.1",
         "@rbxts/types": "^1.0.890",
         "@typescript-eslint/eslint-plugin": "^8.46.4",
         "@typescript-eslint/parser": "^8.46.4",

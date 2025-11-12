@@ -36,6 +36,8 @@ export declare class Covenant {
     private predictionSend;
     private predictionConnect;
     constructor({ logging, requestPayloadSend, requestPayloadConnect, replicationSend, replicationConnect, replicationSendAll, predictionSend, predictionConnect, }: CovenantProps);
+    getClientEntity(entity: Entity): Entity | undefined;
+    getServerEntity(entity: Entity): Entity | undefined;
     private logging;
     enableLogging(): void;
     disableLogging(): void;

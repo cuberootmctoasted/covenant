@@ -63,6 +63,16 @@ do
 		self:setupReplication()
 		self:setupPrediction()
 	end
+	function Covenant:getClientEntity(entity)
+		local _serverToClientEntityMap = self.serverToClientEntityMap
+		local _arg0 = tostring(entity)
+		return _serverToClientEntityMap[_arg0]
+	end
+	function Covenant:getServerEntity(entity)
+		local _clientToServerEntityMap = self.clientToServerEntityMap
+		local _arg0 = tostring(entity)
+		return _clientToServerEntityMap[_arg0]
+	end
 	function Covenant:enableLogging()
 		self.logging = true
 	end
