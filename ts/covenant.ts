@@ -27,17 +27,6 @@ export interface CovenantProps {
     ) => void;
 }
 
-function createWorldWithRange(minClientEntity: number, maxClientEntity: number) {
-    const world = new World();
-    if (RunService.IsClient()) {
-        world.range(minClientEntity, maxClientEntity);
-    }
-    if (RunService.IsServer()) {
-        world.range(maxClientEntity);
-    }
-    return world;
-}
-
 type ComponentSubscriber<T extends defined = defined> = (
     entity: Entity,
     state: T | undefined,
@@ -51,7 +40,7 @@ type ComponentPredictionValidator = (
 ) => boolean;
 
 export class Covenant {
-    private _world: World = createWorldWithRange(1000, 20000);
+    private _world: World = new World();
 
     private systems: EventMap<{ system: () => void; priority: number }[]> = new EventMap();
 
@@ -66,6 +55,9 @@ export class Covenant {
 
     private stringifiedComponentSubscribers: Map<string, Set<ComponentSubscriber>> = new Map();
     private stringifiedComponentValidators: Map<string, ComponentPredictionValidator> = new Map();
+
+    private clientToServerEntityMap: Map<string, Entity> = new Map();
+    private serverToClientEntityMap: Map<string, Entity> = new Map();
 
     private requestPayloadSend: CovenantProps["requestPayloadSend"];
     private requestPayloadConnect: CovenantProps["requestPayloadConnect"];
@@ -247,10 +239,20 @@ export class Covenant {
             () => {
                 if (changes.isEmpty()) return;
                 changes.forEach((worldChanges) => {
-                    worldChanges.forEach((entityData, stringifiedEntity) => {
-                        const entity = tonumber(stringifiedEntity) as Entity;
+                    worldChanges.forEach((entityData, stringifiedServerEntity) => {
+                        let entity = this.serverToClientEntityMap.get(stringifiedServerEntity);
+                        if (entity === undefined) {
+                            entity = this._world.entity();
+                            this.serverToClientEntityMap.set(stringifiedServerEntity, entity);
+                            this.clientToServerEntityMap.set(
+                                tostring(entity),
+                                tonumber(stringifiedServerEntity) as Entity,
+                            );
+                        }
                         if (entityData === Delete) {
                             this.worldDelete(entity);
+                            this.serverToClientEntityMap.delete(stringifiedServerEntity);
+                            this.clientToServerEntityMap.delete(tostring(entity));
                             return;
                         }
                         entityData.forEach((state, stringifiedComponent) => {
@@ -328,12 +330,6 @@ export class Covenant {
         newState: InferComponent<E> | undefined,
         doNotReconcile = false,
     ) {
-        if (!this.worldContains(entity)) {
-            if (!RunService.IsClient()) {
-                return;
-            }
-            this._world.entity(entity);
-        }
         const lastState = this.worldGet(entity, component);
         if (newState === lastState) return;
         if (newState === undefined) {
@@ -348,7 +344,10 @@ export class Covenant {
             subscriber(entity, newState as defined | undefined, lastState as defined | undefined);
         });
         if (doNotReconcile) return;
-        if (this.replicatedStringifiedComponents.has(tostring(component))) {
+        if (
+            RunService.IsServer() &&
+            this.replicatedStringifiedComponents.has(tostring(component))
+        ) {
             let entityChanges = this.worldChangesForReplication.get(tostring(entity));
             if (entityChanges === undefined) {
                 entityChanges = new Map();
@@ -364,7 +363,9 @@ export class Covenant {
                 componentChanges = new Map();
                 this.worldChangesForPrediction.set(tostring(component), componentChanges);
             }
-            componentChanges.set(tostring(entity), newState ?? Remove);
+            const serverEntity = this.clientToServerEntityMap.get(tostring(entity));
+            assert(serverEntity, "This entity should exist.");
+            componentChanges.set(tostring(serverEntity), newState ?? Remove);
         }
     }
 
@@ -408,7 +409,9 @@ export class Covenant {
 
         processed.forEach((entityToDelete) => {
             this._world.delete(entityToDelete);
-            this.worldChangesForReplication.set(tostring(entityToDelete), Delete);
+            if (RunService.IsServer()) {
+                this.worldChangesForReplication.set(tostring(entityToDelete), Delete);
+            }
         });
     }
 
