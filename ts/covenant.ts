@@ -1,4 +1,4 @@
-import { ChildOf, Entity, Id, InferComponent, pair, World } from "@rbxts/jecs";
+import { ChildOf, Entity, Id, InferComponent, pair, world, World } from "@rbxts/jecs";
 import { Players, RunService } from "@rbxts/services";
 import { CovenantHooks, createHooks, Discriminator } from "./hooks";
 import { Remove, Delete } from "./stringEnums";
@@ -40,7 +40,7 @@ type ComponentPredictionValidator = (
 ) => boolean;
 
 export class Covenant {
-    private _world: World = new World();
+    private _world: World = world();
 
     private systems: EventMap<{ system: () => void; priority: number }[]> = new EventMap();
 
