@@ -26,6 +26,8 @@ export declare class Covenant {
     private started;
     private stringifiedComponentSubscribers;
     private stringifiedComponentValidators;
+    private clientToServerEntityMap;
+    private serverToClientEntityMap;
     private requestPayloadSend;
     private requestPayloadConnect;
     private replicationSend;
@@ -71,7 +73,7 @@ export declare class Covenant {
         } | undefined;
     }): void;
     private worldEntity;
-    worldQuery<T extends Id[]>(...components: T): import("@rbxts/jecs").Query<import("@rbxts/jecs").InferComponents<T>>;
+    worldQuery<T extends Id[]>(...components: T): import("@rbxts/jecs").Query<T>;
     worldHas(entity: Entity, ...components: Id[]): boolean;
     worldGet<T extends [Id] | [Id, Id] | [Id, Id, Id] | [Id, Id, Id, Id]>(entity: Entity, ...components: T): import("@rbxts/jecs").FlattenTuple<[...import("@rbxts/jecs").Nullable<import("@rbxts/jecs").InferComponents<T>>]>;
     worldContains(entity: Entity): boolean;

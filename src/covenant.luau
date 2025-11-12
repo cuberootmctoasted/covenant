@@ -4,7 +4,7 @@ local exports = {}
 local _jecs = TS.import(script, TS.getModule(script, "@rbxts", "jecs").jecs)
 local ChildOf = _jecs.ChildOf
 local pair = _jecs.pair
-local World = _jecs.World
+local world = _jecs.world
 local _services = TS.import(script, TS.getModule(script, "@rbxts", "services"))
 local Players = _services.Players
 local RunService = _services.RunService
@@ -19,16 +19,6 @@ for _k, _v in TS.import(script, TS.getModule(script, "@rbxts", "jecs").jecs) or 
 end
 -- Map<Entity, Delete | Map<Component, state | Remove>>
 -- Map<Component, Map<Entity, state | Remove>>
-local function createWorldWithRange(minClientEntity, maxClientEntity)
-	local world = World.new()
-	if RunService:IsClient() then
-		world:range(minClientEntity, maxClientEntity)
-	end
-	if RunService:IsServer() then
-		world:range(maxClientEntity)
-	end
-	return world
-end
 local Covenant
 do
 	Covenant = setmetatable({}, {
@@ -50,7 +40,7 @@ do
 		local replicationSendAll = _param.replicationSendAll
 		local predictionSend = _param.predictionSend
 		local predictionConnect = _param.predictionConnect
-		self._world = createWorldWithRange(1000, 20000)
+		self._world = world()
 		self.systems = EventMap.new()
 		self.worldChangesForReplication = {}
 		self.worldChangesForPrediction = {}
@@ -60,6 +50,8 @@ do
 		self.started = false
 		self.stringifiedComponentSubscribers = {}
 		self.stringifiedComponentValidators = {}
+		self.clientToServerEntityMap = {}
+		self.serverToClientEntityMap = {}
 		self.logging = logging
 		self.requestPayloadSend = requestPayloadSend
 		self.requestPayloadConnect = requestPayloadConnect
@@ -245,10 +237,29 @@ do
 			-- ▼ ReadonlyArray.forEach ▼
 			local _callback = function(worldChanges)
 				-- ▼ ReadonlyMap.forEach ▼
-				local _callback_1 = function(entityData, stringifiedEntity)
-					local entity = tonumber(stringifiedEntity)
+				local _callback_1 = function(entityData, stringifiedServerEntity)
+					local _serverToClientEntityMap = self.serverToClientEntityMap
+					local _stringifiedServerEntity = stringifiedServerEntity
+					local entity = _serverToClientEntityMap[_stringifiedServerEntity]
+					if entity == nil then
+						entity = self._world:entity()
+						local _serverToClientEntityMap_1 = self.serverToClientEntityMap
+						local _stringifiedServerEntity_1 = stringifiedServerEntity
+						local _entity = entity
+						_serverToClientEntityMap_1[_stringifiedServerEntity_1] = _entity
+						local _clientToServerEntityMap = self.clientToServerEntityMap
+						local _arg0 = tostring(entity)
+						local _arg1 = tonumber(stringifiedServerEntity)
+						_clientToServerEntityMap[_arg0] = _arg1
+					end
 					if entityData == Delete then
 						self:worldDelete(entity)
+						local _serverToClientEntityMap_1 = self.serverToClientEntityMap
+						local _stringifiedServerEntity_1 = stringifiedServerEntity
+						_serverToClientEntityMap_1[_stringifiedServerEntity_1] = nil
+						local _clientToServerEntityMap = self.clientToServerEntityMap
+						local _arg0 = tostring(entity)
+						_clientToServerEntityMap[_arg0] = nil
 						return nil
 					end
 					-- ▼ ReadonlyMap.forEach ▼
@@ -349,9 +360,6 @@ do
 		if doNotReconcile == nil then
 			doNotReconcile = false
 		end
-		if not self:worldContains(entity) then
-			self._world:entity(entity)
-		end
 		local lastState = self:worldGet(entity, component)
 		if newState == lastState then
 			return nil
@@ -380,53 +388,61 @@ do
 		if doNotReconcile then
 			return nil
 		end
-		local _replicatedStringifiedComponents = self.replicatedStringifiedComponents
-		local _arg0_1 = tostring(component)
-		if _replicatedStringifiedComponents[_arg0_1] ~= nil then
+		local _condition = RunService:IsServer()
+		if _condition then
+			local _replicatedStringifiedComponents = self.replicatedStringifiedComponents
+			local _arg0_1 = tostring(component)
+			_condition = _replicatedStringifiedComponents[_arg0_1] ~= nil
+		end
+		if _condition then
 			local _worldChangesForReplication = self.worldChangesForReplication
-			local _arg0_2 = tostring(entity)
-			local entityChanges = _worldChangesForReplication[_arg0_2]
+			local _arg0_1 = tostring(entity)
+			local entityChanges = _worldChangesForReplication[_arg0_1]
 			if entityChanges == nil then
 				entityChanges = {}
 				local _worldChangesForReplication_1 = self.worldChangesForReplication
-				local _arg0_3 = tostring(entity)
+				local _arg0_2 = tostring(entity)
 				local _entityChanges = entityChanges
-				_worldChangesForReplication_1[_arg0_3] = _entityChanges
+				_worldChangesForReplication_1[_arg0_2] = _entityChanges
 			end
 			if entityChanges ~= Delete then
 				local _entityChanges = entityChanges
 				local _exp = tostring(component)
-				local _condition = newState
-				if _condition == nil then
-					_condition = Remove
+				local _condition_1 = newState
+				if _condition_1 == nil then
+					_condition_1 = Remove
 				end
-				_entityChanges[_exp] = _condition
+				_entityChanges[_exp] = _condition_1
 			end
 		end
-		local _condition = RunService:IsClient()
-		if _condition then
+		local _condition_1 = RunService:IsClient()
+		if _condition_1 then
 			local _predictedStringifiedComponents = self.predictedStringifiedComponents
-			local _arg0_2 = tostring(component)
-			_condition = _predictedStringifiedComponents[_arg0_2] ~= nil
+			local _arg0_1 = tostring(component)
+			_condition_1 = _predictedStringifiedComponents[_arg0_1] ~= nil
 		end
-		if _condition then
+		if _condition_1 then
 			local _worldChangesForPrediction = self.worldChangesForPrediction
-			local _arg0_2 = tostring(component)
-			local componentChanges = _worldChangesForPrediction[_arg0_2]
+			local _arg0_1 = tostring(component)
+			local componentChanges = _worldChangesForPrediction[_arg0_1]
 			if componentChanges == nil then
 				componentChanges = {}
 				local _worldChangesForPrediction_1 = self.worldChangesForPrediction
-				local _arg0_3 = tostring(component)
+				local _arg0_2 = tostring(component)
 				local _componentChanges = componentChanges
-				_worldChangesForPrediction_1[_arg0_3] = _componentChanges
+				_worldChangesForPrediction_1[_arg0_2] = _componentChanges
 			end
+			local _clientToServerEntityMap = self.clientToServerEntityMap
+			local _arg0_2 = tostring(entity)
+			local serverEntity = _clientToServerEntityMap[_arg0_2]
+			assert(serverEntity ~= 0 and serverEntity == serverEntity and serverEntity, "This entity should exist.")
 			local _componentChanges = componentChanges
-			local _exp = tostring(entity)
-			local _condition_1 = newState
-			if _condition_1 == nil then
-				_condition_1 = Remove
+			local _exp = tostring(serverEntity)
+			local _condition_2 = newState
+			if _condition_2 == nil then
+				_condition_2 = Remove
 			end
-			_componentChanges[_exp] = _condition_1
+			_componentChanges[_exp] = _condition_2
 		end
 	end
 	function Covenant:subscribeComponent(component, subscriber)
@@ -470,9 +486,11 @@ do
 		-- ▼ ReadonlySet.forEach ▼
 		local _callback = function(entityToDelete)
 			self._world:delete(entityToDelete)
-			local _worldChangesForReplication = self.worldChangesForReplication
-			local _arg0 = tostring(entityToDelete)
-			_worldChangesForReplication[_arg0] = Delete
+			if RunService:IsServer() then
+				local _worldChangesForReplication = self.worldChangesForReplication
+				local _arg0 = tostring(entityToDelete)
+				_worldChangesForReplication[_arg0] = Delete
+			end
 		end
 		for _v in processed do
 			_callback(_v, _v, processed)
