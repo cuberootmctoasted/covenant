@@ -92,11 +92,11 @@ export class Covenant {
     }
 
     public getClientEntity(entity: Entity) {
-        return this.serverToClientEntityMap.get(tostring(entity))
+        return this.serverToClientEntityMap.get(tostring(entity));
     }
 
     public getServerEntity(entity: Entity) {
-        return this.clientToServerEntityMap.get(tostring(entity))
+        return this.clientToServerEntityMap.get(tostring(entity));
     }
 
     private logging: boolean;
@@ -554,70 +554,29 @@ export class Covenant {
         });
     }
 
-    public defineIdentity<T extends Discriminator>({
+    public defineIdentity<T extends defined>({
         identityComponent,
-        recipe,
         replicated,
+        factory,
     }: {
-        replicated: boolean;
         identityComponent: Entity<T>;
-        recipe: (
-            entities: ReadonlyMap<T, Entity>,
-            updateId: number,
-            hooks: CovenantHooks,
-        ) => { statesToCreate?: T[]; statesToDelete?: T[] } | undefined;
+        replicated: boolean;
+        factory: (spawn: (state: T) => Entity, despawn: (entity: Entity) => void) => void;
     }) {
         this.checkComponentDefined(identityComponent);
 
         this.defineComponentNetworkBehavior(identityComponent, replicated, false);
 
-        let willUpdate = true;
-        function indicateUpdate() {
-            willUpdate = true;
-        }
-
-        const hooks = createHooks({
-            indicateUpdate,
-            subscribeComponent: <T extends defined>(
-                component: Entity<T>,
-                subscriber: ComponentSubscriber<T>,
-            ) => {
-                this.subscribeComponent(component, subscriber);
-            },
-        });
-
-        const entities: Map<T, Entity> = new Map();
-        this.subscribeComponent(identityComponent, (entity, state, prevState) => {
-            if (prevState !== undefined) {
-                entities.delete(prevState);
-            }
-            if (state !== undefined) {
-                entities.set(state, entity);
-            }
-        });
-
-        let lastUpdateId = 0;
-        const updater = () => {
-            const updateId = ++lastUpdateId;
-            const modifiers = recipe(entities, updateId, hooks);
-            if (modifiers === undefined) return;
-            const { statesToCreate, statesToDelete } = modifiers;
-            statesToCreate?.forEach((state) => {
+        factory(
+            (state) => {
                 const entity = this.worldEntity();
                 this.worldSet(entity, identityComponent, state);
-            });
-            statesToDelete?.forEach((state) => {
-                const entity = entities.get(state);
-                if (entity === undefined) return;
+                return entity;
+            },
+            (entity) => {
                 this.worldDelete(entity);
-            });
-        };
-
-        this.schedule(RunService.Heartbeat, () => {
-            if (!willUpdate) return;
-            willUpdate = false;
-            updater();
-        });
+            },
+        );
     }
 
     private worldEntity(): Entity {
