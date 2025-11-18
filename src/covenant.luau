@@ -670,78 +670,16 @@ do
 	end
 	function Covenant:defineIdentity(_param)
 		local identityComponent = _param.identityComponent
-		local recipe = _param.recipe
 		local replicated = _param.replicated
+		local factory = _param.factory
 		self:checkComponentDefined(identityComponent)
 		self:defineComponentNetworkBehavior(identityComponent, replicated, false)
-		local willUpdate = true
-		local function indicateUpdate()
-			willUpdate = true
-		end
-		local hooks = createHooks({
-			indicateUpdate = indicateUpdate,
-			subscribeComponent = function(component, subscriber)
-				self:subscribeComponent(component, subscriber)
-			end,
-		})
-		local entities = {}
-		self:subscribeComponent(identityComponent, function(entity, state, prevState)
-			if prevState ~= nil then
-				local _prevState = prevState
-				entities[_prevState] = nil
-			end
-			if state ~= nil then
-				local _state = state
-				local _entity = entity
-				entities[_state] = _entity
-			end
-		end)
-		local lastUpdateId = 0
-		local updater = function()
-			lastUpdateId += 1
-			local updateId = lastUpdateId
-			local modifiers = recipe(entities, updateId, hooks)
-			if modifiers == nil then
-				return nil
-			end
-			local _binding = modifiers
-			local statesToCreate = _binding.statesToCreate
-			local statesToDelete = _binding.statesToDelete
-			local _result = statesToCreate
-			if _result ~= nil then
-				-- ▼ ReadonlyArray.forEach ▼
-				local _callback = function(state)
-					local entity = self:worldEntity()
-					self:worldSet(entity, identityComponent, state)
-				end
-				for _k, _v in _result do
-					_callback(_v, _k - 1, _result)
-				end
-				-- ▲ ReadonlyArray.forEach ▲
-			end
-			local _result_1 = statesToDelete
-			if _result_1 ~= nil then
-				-- ▼ ReadonlyArray.forEach ▼
-				local _callback = function(state)
-					local _state = state
-					local entity = entities[_state]
-					if entity == nil then
-						return nil
-					end
-					self:worldDelete(entity)
-				end
-				for _k, _v in _result_1 do
-					_callback(_v, _k - 1, _result_1)
-				end
-				-- ▲ ReadonlyArray.forEach ▲
-			end
-		end
-		self:schedule(RunService.Heartbeat, function()
-			if not willUpdate then
-				return nil
-			end
-			willUpdate = false
-			updater()
+		factory(function(state)
+			local entity = self:worldEntity()
+			self:worldSet(entity, identityComponent, state)
+			return entity
+		end, function(entity)
+			self:worldDelete(entity)
 		end)
 	end
 	function Covenant:worldEntity()

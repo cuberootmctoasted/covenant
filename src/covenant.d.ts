@@ -1,5 +1,5 @@
 import { Entity, Id } from "@rbxts/jecs";
-import { CovenantHooks, Discriminator } from "./hooks";
+import { CovenantHooks } from "./hooks";
 import { Remove, Delete } from "./stringEnums";
 export * from "@rbxts/jecs";
 export type WorldChangesForReplication = Map<string, Delete | Map<string, defined | Remove>>;
@@ -66,13 +66,10 @@ export declare class Covenant {
         queriedComponents: Entity[][];
         recipe: (entity: Entity, lastState: T | undefined, updateId: number, hooks: CovenantHooks) => T | undefined;
     }): void;
-    defineIdentity<T extends Discriminator>({ identityComponent, recipe, replicated, }: {
-        replicated: boolean;
+    defineIdentity<T extends defined>({ identityComponent, replicated, factory, }: {
         identityComponent: Entity<T>;
-        recipe: (entities: ReadonlyMap<T, Entity>, updateId: number, hooks: CovenantHooks) => {
-            statesToCreate?: T[];
-            statesToDelete?: T[];
-        } | undefined;
+        replicated: boolean;
+        factory: (spawn: (state: T) => Entity, despawn: (entity: Entity) => void) => void;
     }): void;
     private worldEntity;
     worldQuery<T extends Id[]>(...components: T): import("@rbxts/jecs").Query<T>;
