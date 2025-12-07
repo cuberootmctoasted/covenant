@@ -20,6 +20,7 @@ export declare class Covenant {
     private systems;
     private worldChangesForReplication;
     private worldChangesForPrediction;
+    private components;
     private undefinedStringifiedComponents;
     private replicatedStringifiedComponents;
     private predictedStringifiedComponents;
@@ -66,10 +67,11 @@ export declare class Covenant {
         queriedComponents: Entity[][];
         recipe: (entity: Entity, lastState: T | undefined, updateId: number, hooks: CovenantHooks) => T | undefined;
     }): void;
-    defineIdentity<T extends defined>({ identityComponent, replicated, factory, }: {
+    defineIdentity<T extends defined>({ identityComponent, replicated, lifetime, factory, }: {
         identityComponent: Entity<T>;
         replicated: boolean;
-        factory: (spawn: (state: T) => Entity, despawn: (entity: Entity) => void) => void;
+        lifetime: (entity: Entity, state: T, despawn: () => void) => (() => void) | undefined;
+        factory: (spawnEntity: (state: T) => void) => void;
     }): void;
     private worldEntity;
     worldQuery<T extends Id[]>(...components: T): import("@rbxts/jecs").Query<T>;

@@ -1,10 +1,7 @@
 -- Compiled with roblox-ts v3.0.0
 local TS = _G[script]
 local exports = {}
-local _jecs = TS.import(script, TS.getModule(script, "@rbxts", "jecs").jecs)
-local ChildOf = _jecs.ChildOf
-local pair = _jecs.pair
-local world = _jecs.world
+local world = TS.import(script, TS.getModule(script, "@rbxts", "jecs").jecs).world
 local _services = TS.import(script, TS.getModule(script, "@rbxts", "services"))
 local Players = _services.Players
 local RunService = _services.RunService
@@ -44,6 +41,7 @@ do
 		self.systems = EventMap.new()
 		self.worldChangesForReplication = {}
 		self.worldChangesForPrediction = {}
+		self.components = {}
 		self.undefinedStringifiedComponents = {}
 		self.replicatedStringifiedComponents = {}
 		self.predictedStringifiedComponents = {}
@@ -476,36 +474,35 @@ do
 		if not self:worldContains(entity) then
 			return nil
 		end
-		local toDelete = { entity }
-		local processed = {}
-		while #toDelete > 0 do
-			-- ▼ Array.pop ▼
-			local _length = #toDelete
-			local _result = toDelete[_length]
-			toDelete[_length] = nil
-			-- ▲ Array.pop ▲
-			local currentEntity = _result
-			if processed[currentEntity] ~= nil or not self:worldContains(currentEntity) then
-				continue
-			end
-			processed[currentEntity] = true
-			for childEntity in self:worldQuery(pair(ChildOf, currentEntity)) do
-				table.insert(toDelete, childEntity)
-			end
-		end
-		-- ▼ ReadonlySet.forEach ▼
-		local _callback = function(entityToDelete)
-			self._world:delete(entityToDelete)
-			if RunService:IsServer() then
-				local _worldChangesForReplication = self.worldChangesForReplication
-				local _arg0 = tostring(entityToDelete)
-				_worldChangesForReplication[_arg0] = Delete
+		local _exp = self.components
+		-- ▼ ReadonlyArray.forEach ▼
+		local _callback = function(c)
+			if self:worldHas(c) then
+				local _stringifiedComponentSubscribers = self.stringifiedComponentSubscribers
+				local _arg0 = tostring(c)
+				local _result = _stringifiedComponentSubscribers[_arg0]
+				if _result ~= nil then
+					-- ▼ ReadonlySet.forEach ▼
+					local _callback_1 = function(subscriber)
+						subscriber(entity, nil, self:worldGet(entity, c))
+					end
+					for _v in _result do
+						_callback_1(_v, _v, _result)
+					end
+					-- ▲ ReadonlySet.forEach ▲
+				end
 			end
 		end
-		for _v in processed do
-			_callback(_v, _v, processed)
+		for _k, _v in _exp do
+			_callback(_v, _k - 1, _exp)
 		end
-		-- ▲ ReadonlySet.forEach ▲
+		-- ▲ ReadonlyArray.forEach ▲
+		self._world:delete(entity)
+		if RunService:IsServer() then
+			local _worldChangesForReplication = self.worldChangesForReplication
+			local _arg0 = tostring(entity)
+			_worldChangesForReplication[_arg0] = Delete
+		end
 	end
 	function Covenant:worldComponent()
 		self:preventPostStartCall()
@@ -513,6 +510,8 @@ do
 		local _undefinedStringifiedComponents = self.undefinedStringifiedComponents
 		local _arg0 = tostring(c)
 		_undefinedStringifiedComponents[_arg0] = true
+		local _exp = self.components
+		table.insert(_exp, c)
 		if RunService:IsStudio() and self.logging then
 			print(`{(debug.info(2, "sl"))}:{c}`)
 		end
@@ -671,15 +670,20 @@ do
 	function Covenant:defineIdentity(_param)
 		local identityComponent = _param.identityComponent
 		local replicated = _param.replicated
+		local lifetime = _param.lifetime
 		local factory = _param.factory
 		self:checkComponentDefined(identityComponent)
 		self:defineComponentNetworkBehavior(identityComponent, replicated, false)
 		factory(function(state)
 			local entity = self:worldEntity()
 			self:worldSet(entity, identityComponent, state)
-			return entity
-		end, function(entity)
-			self:worldDelete(entity)
+			local cleanup = function() end
+			cleanup = lifetime(entity, state, function()
+				self:worldDelete(entity)
+				if cleanup ~= nil then
+					cleanup()
+				end
+			end)
 		end)
 	end
 	function Covenant:worldEntity()

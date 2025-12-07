@@ -47,6 +47,7 @@ export class Covenant {
     private worldChangesForReplication: WorldChangesForReplication = new Map();
     private worldChangesForPrediction: WorldChangesForPrediction = new Map();
 
+    private components: Entity[] = [];
     private undefinedStringifiedComponents: Set<string> = new Set();
     private replicatedStringifiedComponents: Set<string> = new Set();
     private predictedStringifiedComponents: Set<string> = new Set();
@@ -400,33 +401,25 @@ export class Covenant {
     private worldDelete(entity: Entity) {
         if (!this.worldContains(entity)) return;
 
-        const toDelete: Entity[] = [entity];
-        const processed: Set<Entity> = new Set();
-
-        while (toDelete.size() > 0) {
-            const currentEntity = toDelete.pop()!;
-            if (processed.has(currentEntity) || !this.worldContains(currentEntity)) {
-                continue;
-            }
-            processed.add(currentEntity);
-
-            for (const [childEntity] of this.worldQuery(pair(ChildOf, currentEntity))) {
-                toDelete.push(childEntity);
-            }
-        }
-
-        processed.forEach((entityToDelete) => {
-            this._world.delete(entityToDelete);
-            if (RunService.IsServer()) {
-                this.worldChangesForReplication.set(tostring(entityToDelete), Delete);
+        this.components.forEach((c) => {
+            if (this.worldHas(c)) {
+                this.stringifiedComponentSubscribers.get(tostring(c))?.forEach((subscriber) => {
+                    subscriber(entity, undefined, this.worldGet(entity, c) as defined | undefined);
+                });
             }
         });
+
+        this._world.delete(entity);
+        if (RunService.IsServer()) {
+            this.worldChangesForReplication.set(tostring(entity), Delete);
+        }
     }
 
     public worldComponent<T extends defined>() {
         this.preventPostStartCall();
         const c = this._world.component<T>();
         this.undefinedStringifiedComponents.add(tostring(c));
+        this.components.push(c);
         if (RunService.IsStudio() && this.logging) {
             print(`${debug.info(2, "sl")[0]}:${c}`);
         }
@@ -557,26 +550,27 @@ export class Covenant {
     public defineIdentity<T extends defined>({
         identityComponent,
         replicated,
+        lifetime,
         factory,
     }: {
         identityComponent: Entity<T>;
         replicated: boolean;
-        factory: (spawn: (state: T) => Entity, despawn: (entity: Entity) => void) => void;
+        lifetime: (entity: Entity, state: T, despawn: () => void) => (() => void) | undefined;
+        factory: (spawnEntity: (state: T) => void) => void;
     }) {
         this.checkComponentDefined(identityComponent);
 
         this.defineComponentNetworkBehavior(identityComponent, replicated, false);
 
-        factory(
-            (state) => {
-                const entity = this.worldEntity();
-                this.worldSet(entity, identityComponent, state);
-                return entity;
-            },
-            (entity) => {
+        factory((state) => {
+            const entity = this.worldEntity();
+            this.worldSet(entity, identityComponent, state);
+            let cleanup: (() => void) | undefined = () => {};
+            cleanup = lifetime(entity, state, () => {
                 this.worldDelete(entity);
-            },
-        );
+                if (cleanup !== undefined) cleanup();
+            });
+        });
     }
 
     private worldEntity(): Entity {
