@@ -3,6 +3,7 @@ import { Players, RunService } from "@rbxts/services";
 import { CovenantHooks, createHooks, Discriminator } from "./hooks";
 import { Remove, Delete } from "./stringEnums";
 import { EventMap } from "./dataStructureWithEvents";
+import { tableToString } from "./tableToString";
 
 const BIG_PRIORITY = 10000000;
 
@@ -14,8 +15,10 @@ export type WorldChangesForReplication = Map<string, Delete | Map<string, define
 // Map<Component, Map<Entity, state | Remove>>
 export type WorldChangesForPrediction = Map<string, Map<string, defined | Remove>>;
 
+export type LoggingOption = "FORCE_ON" | "FORCE_OFF" | "COMPONENT_CONTROLLED";
+
 export interface CovenantProps {
-    logging: boolean;
+    logging: LoggingOption;
     requestPayloadSend: () => void;
     requestPayloadConnect: (callback: (player: Player) => void) => void;
     replicationSend: (player: Player, worldChanges: WorldChangesForReplication) => void;
@@ -31,6 +34,7 @@ type ComponentSubscriber<T extends defined = defined> = (
     entity: Entity,
     state: T | undefined,
     previousState: T | undefined,
+    isDeleting: boolean,
 ) => void;
 type ComponentPredictionValidator = (
     player: Player,
@@ -47,10 +51,14 @@ export class Covenant {
     private worldChangesForReplication: WorldChangesForReplication = new Map();
     private worldChangesForPrediction: WorldChangesForPrediction = new Map();
 
-    private components: Entity[] = [];
+    private stringfiedComponents: Set<string> = new Set();
     private undefinedStringifiedComponents: Set<string> = new Set();
     private replicatedStringifiedComponents: Set<string> = new Set();
     private predictedStringifiedComponents: Set<string> = new Set();
+
+    private loggingStringfiedComponents: Set<string> = new Set();
+
+    private stringfiedComponentsToNameMap: Map<string, string> = new Map();
 
     private started = false;
 
@@ -78,7 +86,7 @@ export class Covenant {
         predictionSend,
         predictionConnect,
     }: CovenantProps) {
-        this.logging = logging;
+        this.loggingOption = logging;
 
         this.requestPayloadSend = requestPayloadSend;
         this.requestPayloadConnect = requestPayloadConnect;
@@ -100,15 +108,7 @@ export class Covenant {
         return this.clientToServerEntityMap.get(tostring(entity));
     }
 
-    private logging: boolean;
-
-    public enableLogging() {
-        this.logging = true;
-    }
-
-    public disableLogging() {
-        this.logging = false;
-    }
+    private loggingOption: LoggingOption;
 
     private setupPredictionClient() {
         this.schedule(
@@ -149,7 +149,7 @@ export class Covenant {
                 }
                 entityReconciliations.set(
                     stringifiedComponent,
-                    this.worldGet(entity, component) ?? Remove,
+                    this.worldHas(entity, component) ? this.worldGet(entity, component)! : Remove,
                 );
             }
         });
@@ -250,6 +250,14 @@ export class Covenant {
                 changes.forEach((worldChanges) => {
                     worldChanges.forEach((entityData, stringifiedServerEntity) => {
                         let entity = this.serverToClientEntityMap.get(stringifiedServerEntity);
+                        if (entityData === Delete) {
+                            if (entity !== undefined) {
+                                this.worldDelete(entity);
+                            }
+                            this.serverToClientEntityMap.delete(stringifiedServerEntity);
+                            this.clientToServerEntityMap.delete(tostring(entity));
+                            return;
+                        }
                         if (entity === undefined) {
                             entity = this._world.entity();
                             this.serverToClientEntityMap.set(stringifiedServerEntity, entity);
@@ -257,12 +265,6 @@ export class Covenant {
                                 tostring(entity),
                                 tonumber(stringifiedServerEntity) as Entity,
                             );
-                        }
-                        if (entityData === Delete) {
-                            this.worldDelete(entity);
-                            this.serverToClientEntityMap.delete(stringifiedServerEntity);
-                            this.clientToServerEntityMap.delete(tostring(entity));
-                            return;
                         }
                         entityData.forEach((state, stringifiedComponent) => {
                             const component = tonumber(stringifiedComponent) as Entity<defined>;
@@ -346,11 +348,23 @@ export class Covenant {
         } else {
             this._world.set(entity, component, newState);
         }
-        if (this.logging && RunService.IsStudio()) {
-            print(`${entity}.${component}:${lastState}->${newState}`);
+        if (
+            RunService.IsStudio() &&
+            this.loggingOption !== "FORCE_OFF" &&
+            (this.loggingOption === "FORCE_ON" ||
+                this.loggingStringfiedComponents.has(tostring(component)))
+        ) {
+            print(
+                `${this.getComponentName(component as Entity)}.${entity}.[${doNotReconcile ? "remote" : "local"}]:${tableToString(lastState)}->${tableToString(newState)}`,
+            );
         }
         this.stringifiedComponentSubscribers.get(tostring(component))?.forEach((subscriber) => {
-            subscriber(entity, newState as defined | undefined, lastState as defined | undefined);
+            subscriber(
+                entity,
+                newState as defined | undefined,
+                lastState as defined | undefined,
+                false,
+            );
         });
         if (doNotReconcile) return;
         if (
@@ -363,7 +377,10 @@ export class Covenant {
                 this.worldChangesForReplication.set(tostring(entity), entityChanges);
             }
             if (entityChanges !== Delete) {
-                entityChanges.set(tostring(component), newState ?? Remove);
+                entityChanges.set(
+                    tostring(component),
+                    newState !== undefined ? (newState as defined) : Remove,
+                );
             }
         }
         if (RunService.IsClient() && this.predictedStringifiedComponents.has(tostring(component))) {
@@ -373,14 +390,18 @@ export class Covenant {
                 this.worldChangesForPrediction.set(tostring(component), componentChanges);
             }
             const serverEntity = this.clientToServerEntityMap.get(tostring(entity));
-            assert(serverEntity, "This entity should exist.");
-            componentChanges.set(tostring(serverEntity), newState ?? Remove);
+            if (serverEntity !== undefined) {
+                componentChanges.set(
+                    tostring(serverEntity),
+                    newState !== undefined ? (newState as defined) : Remove,
+                );
+            }
         }
     }
 
-    public subscribeComponent<T>(
+    public subscribeComponent<T extends defined>(
         component: Entity<T>,
-        subscriber: (entity: Entity, state: T | undefined, previousState: T | undefined) => void,
+        subscriber: ComponentSubscriber<T>,
     ) {
         let subscribers = this.stringifiedComponentSubscribers.get(tostring(component));
         if (subscribers === undefined) {
@@ -401,10 +422,12 @@ export class Covenant {
     private worldDelete(entity: Entity) {
         if (!this.worldContains(entity)) return;
 
-        this.components.forEach((c) => {
-            if (this.worldHas(c)) {
+        this.stringfiedComponents.forEach((cString) => {
+            const c = tonumber(cString) as Entity;
+            if (this.worldHas(entity, c)) {
+                const lastState = this.worldGet(entity, c) as defined | undefined;
                 this.stringifiedComponentSubscribers.get(tostring(c))?.forEach((subscriber) => {
-                    subscriber(entity, undefined, this.worldGet(entity, c) as defined | undefined);
+                    subscriber(entity, undefined, lastState, true);
                 });
             }
         });
@@ -415,15 +438,18 @@ export class Covenant {
         }
     }
 
-    public worldComponent<T extends defined>() {
+    public worldComponent<T extends defined>(name: string) {
         this.preventPostStartCall();
         const c = this._world.component<T>();
-        this.undefinedStringifiedComponents.add(tostring(c));
-        this.components.push(c);
-        if (RunService.IsStudio() && this.logging) {
-            print(`${debug.info(2, "sl")[0]}:${c}`);
-        }
+        const cStr = tostring(c);
+        this.stringfiedComponentsToNameMap.set(cStr, name);
+        this.undefinedStringifiedComponents.add(cStr);
+        this.stringfiedComponents.add(cStr);
         return c;
+    }
+
+    public getComponentName(component: Entity) {
+        return this.stringfiedComponentsToNameMap.get(tostring(component))!;
     }
 
     public worldTag() {
@@ -456,12 +482,14 @@ export class Covenant {
     }
 
     public defineComponent<T extends defined>({
+        logging,
         component,
         queriedComponents,
         recipe,
         replicated,
         predictionValidator,
     }: {
+        logging?: true;
         replicated: boolean;
         predictionValidator: ComponentPredictionValidator | false;
         component: Entity<T>;
@@ -477,6 +505,10 @@ export class Covenant {
 
         this.defineComponentNetworkBehavior(component, replicated, predictionValidator);
 
+        if (logging) {
+            this.loggingStringfiedComponents.add(tostring(component));
+        }
+
         const queryThisComponent = this.worldQuery(component).cached();
 
         let willUpdate = true;
@@ -486,12 +518,7 @@ export class Covenant {
 
         const hooks = createHooks({
             indicateUpdate,
-            subscribeComponent: <T extends defined>(
-                component: Entity<T>,
-                subscriber: ComponentSubscriber<T>,
-            ) => {
-                this.subscribeComponent(component, subscriber);
-            },
+            covenant: this,
         });
 
         const queries = queriedComponents.map((components) => {
@@ -511,7 +538,7 @@ export class Covenant {
                 return tonumber(stringifiedComponent) as Entity;
             })
             .forEach((component) => {
-                this.subscribeComponent(component, indicateUpdate);
+                this.subscribeComponent(component as Entity<defined>, indicateUpdate);
             });
 
         let lastUpdateId = 0;
@@ -548,17 +575,23 @@ export class Covenant {
     }
 
     public defineIdentity<T extends defined>({
+        logging,
         identityComponent,
         replicated,
         lifetime,
         factory,
     }: {
+        logging?: true;
         identityComponent: Entity<T>;
         replicated: boolean;
         lifetime: (entity: Entity, state: T, despawn: () => void) => (() => void) | undefined;
         factory: (spawnEntity: (state: T) => void) => void;
     }) {
         this.checkComponentDefined(identityComponent);
+
+        if (logging) {
+            this.loggingStringfiedComponents.add(tostring(identityComponent));
+        }
 
         this.defineComponentNetworkBehavior(identityComponent, replicated, false);
 

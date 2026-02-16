@@ -1,4 +1,5 @@
 import { Entity } from "@rbxts/jecs";
+import { Covenant } from "./covenant";
 type AsyncResult<T = unknown> = {
     completed: boolean;
     value: T | undefined;
@@ -8,7 +9,7 @@ export type Discriminator = Exclude<defined, number>;
 export interface CovenantHooks {
     useEvent: <T extends Array<unknown>>(updateId: number, instance: Instance, event: RBXScriptSignal<(...args: T) => void>) => T[];
     useEventImmediately: <T extends Array<unknown>, TReturn extends defined>(updateId: number, instance: Instance, event: RBXScriptSignal<(...args: T) => void>, callback: (...args: T) => TReturn) => TReturn[];
-    useComponentChange: <T extends defined>(updateId: number, component: Entity<T>) => {
+    useComponentChange: <T extends defined>(updateId: number, component: Entity<T>, payload: boolean) => {
         entity: Entity;
         state: T | undefined;
         previousState: T | undefined;
@@ -23,7 +24,7 @@ export interface CovenantHooks {
 }
 interface CovenantHooksProps {
     indicateUpdate: () => void;
-    subscribeComponent: <T extends defined>(component: Entity<T>, subscriber: (entity: Entity, state: T | undefined, previousState: T | undefined) => void) => void;
+    covenant: Covenant;
 }
 export declare function createHooks(props: CovenantHooksProps): CovenantHooks;
 export {};

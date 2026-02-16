@@ -1,0 +1,1 @@
+export declare function tableToString(table: unknown): string;

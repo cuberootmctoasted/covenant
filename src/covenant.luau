@@ -10,6 +10,7 @@ local _stringEnums = TS.import(script, script.Parent, "stringEnums")
 local Remove = _stringEnums.Remove
 local Delete = _stringEnums.Delete
 local EventMap = TS.import(script, script.Parent, "dataStructureWithEvents").EventMap
+local tableToString = TS.import(script, script.Parent, "tableToString").tableToString
 local BIG_PRIORITY = 10000000
 for _k, _v in TS.import(script, TS.getModule(script, "@rbxts", "jecs").jecs) or {} do
 	exports[_k] = _v
@@ -41,16 +42,18 @@ do
 		self.systems = EventMap.new()
 		self.worldChangesForReplication = {}
 		self.worldChangesForPrediction = {}
-		self.components = {}
+		self.stringfiedComponents = {}
 		self.undefinedStringifiedComponents = {}
 		self.replicatedStringifiedComponents = {}
 		self.predictedStringifiedComponents = {}
+		self.loggingStringfiedComponents = {}
+		self.stringfiedComponentsToNameMap = {}
 		self.started = false
 		self.stringifiedComponentSubscribers = {}
 		self.stringifiedComponentValidators = {}
 		self.clientToServerEntityMap = {}
 		self.serverToClientEntityMap = {}
-		self.logging = logging
+		self.loggingOption = logging
 		self.requestPayloadSend = requestPayloadSend
 		self.requestPayloadConnect = requestPayloadConnect
 		self.replicationSend = replicationSend
@@ -70,12 +73,6 @@ do
 		local _clientToServerEntityMap = self.clientToServerEntityMap
 		local _arg0 = tostring(entity)
 		return _clientToServerEntityMap[_arg0]
-	end
-	function Covenant:enableLogging()
-		self.logging = true
-	end
-	function Covenant:disableLogging()
-		self.logging = false
 	end
 	function Covenant:setupPredictionClient()
 		self:schedule(RunService.Heartbeat, function()
@@ -120,12 +117,9 @@ do
 					_worldReconciliation_1[_stringifiedEntity_1] = _entityReconciliations
 				end
 				local _entityReconciliations = entityReconciliations
-				local _exp = stringifiedComponent
-				local _condition = self:worldGet(entity, component)
-				if _condition == nil then
-					_condition = Remove
-				end
-				_entityReconciliations[_exp] = _condition
+				local _stringifiedComponent_1 = stringifiedComponent
+				local _arg1 = if self:worldHas(entity, component) then self:worldGet(entity, component) else Remove
+				_entityReconciliations[_stringifiedComponent_1] = _arg1
 			end
 		end
 		for _k, _v in componentChanges do
@@ -249,6 +243,18 @@ do
 					local _serverToClientEntityMap = self.serverToClientEntityMap
 					local _stringifiedServerEntity = stringifiedServerEntity
 					local entity = _serverToClientEntityMap[_stringifiedServerEntity]
+					if entityData == Delete then
+						if entity ~= nil then
+							self:worldDelete(entity)
+						end
+						local _serverToClientEntityMap_1 = self.serverToClientEntityMap
+						local _stringifiedServerEntity_1 = stringifiedServerEntity
+						_serverToClientEntityMap_1[_stringifiedServerEntity_1] = nil
+						local _clientToServerEntityMap = self.clientToServerEntityMap
+						local _arg0 = tostring(entity)
+						_clientToServerEntityMap[_arg0] = nil
+						return nil
+					end
 					if entity == nil then
 						entity = self._world:entity()
 						local _serverToClientEntityMap_1 = self.serverToClientEntityMap
@@ -259,16 +265,6 @@ do
 						local _arg0 = tostring(entity)
 						local _arg1 = tonumber(stringifiedServerEntity)
 						_clientToServerEntityMap[_arg0] = _arg1
-					end
-					if entityData == Delete then
-						self:worldDelete(entity)
-						local _serverToClientEntityMap_1 = self.serverToClientEntityMap
-						local _stringifiedServerEntity_1 = stringifiedServerEntity
-						_serverToClientEntityMap_1[_stringifiedServerEntity_1] = nil
-						local _clientToServerEntityMap = self.clientToServerEntityMap
-						local _arg0 = tostring(entity)
-						_clientToServerEntityMap[_arg0] = nil
-						return nil
 					end
 					-- ▼ ReadonlyMap.forEach ▼
 					local _callback_2 = function(state, stringifiedComponent)
@@ -377,8 +373,18 @@ do
 		else
 			self._world:set(entity, component, newState)
 		end
-		if self.logging and RunService:IsStudio() then
-			print(`{entity}.{component}:{lastState}->{newState}`)
+		local _condition = RunService:IsStudio() and self.loggingOption ~= "FORCE_OFF"
+		if _condition then
+			local _condition_1 = self.loggingOption == "FORCE_ON"
+			if not _condition_1 then
+				local _loggingStringfiedComponents = self.loggingStringfiedComponents
+				local _arg0 = tostring(component)
+				_condition_1 = _loggingStringfiedComponents[_arg0] ~= nil
+			end
+			_condition = _condition_1
+		end
+		if _condition then
+			print(`{self:getComponentName(component)}.{entity}.[{if doNotReconcile then "remote" else "local"}]:{tableToString(lastState)}->{tableToString(newState)}`)
 		end
 		local _stringifiedComponentSubscribers = self.stringifiedComponentSubscribers
 		local _arg0 = tostring(component)
@@ -386,7 +392,7 @@ do
 		if _result ~= nil then
 			-- ▼ ReadonlySet.forEach ▼
 			local _callback = function(subscriber)
-				subscriber(entity, newState, lastState)
+				subscriber(entity, newState, lastState, false)
 			end
 			for _v in _result do
 				_callback(_v, _v, _result)
@@ -396,13 +402,13 @@ do
 		if doNotReconcile then
 			return nil
 		end
-		local _condition = RunService:IsServer()
-		if _condition then
+		local _condition_1 = RunService:IsServer()
+		if _condition_1 then
 			local _replicatedStringifiedComponents = self.replicatedStringifiedComponents
 			local _arg0_1 = tostring(component)
-			_condition = _replicatedStringifiedComponents[_arg0_1] ~= nil
+			_condition_1 = _replicatedStringifiedComponents[_arg0_1] ~= nil
 		end
-		if _condition then
+		if _condition_1 then
 			local _worldChangesForReplication = self.worldChangesForReplication
 			local _arg0_1 = tostring(entity)
 			local entityChanges = _worldChangesForReplication[_arg0_1]
@@ -415,21 +421,18 @@ do
 			end
 			if entityChanges ~= Delete then
 				local _entityChanges = entityChanges
-				local _exp = tostring(component)
-				local _condition_1 = newState
-				if _condition_1 == nil then
-					_condition_1 = Remove
-				end
-				_entityChanges[_exp] = _condition_1
+				local _arg0_2 = tostring(component)
+				local _arg1 = if newState ~= nil then newState else Remove
+				_entityChanges[_arg0_2] = _arg1
 			end
 		end
-		local _condition_1 = RunService:IsClient()
-		if _condition_1 then
+		local _condition_2 = RunService:IsClient()
+		if _condition_2 then
 			local _predictedStringifiedComponents = self.predictedStringifiedComponents
 			local _arg0_1 = tostring(component)
-			_condition_1 = _predictedStringifiedComponents[_arg0_1] ~= nil
+			_condition_2 = _predictedStringifiedComponents[_arg0_1] ~= nil
 		end
-		if _condition_1 then
+		if _condition_2 then
 			local _worldChangesForPrediction = self.worldChangesForPrediction
 			local _arg0_1 = tostring(component)
 			local componentChanges = _worldChangesForPrediction[_arg0_1]
@@ -443,14 +446,12 @@ do
 			local _clientToServerEntityMap = self.clientToServerEntityMap
 			local _arg0_2 = tostring(entity)
 			local serverEntity = _clientToServerEntityMap[_arg0_2]
-			assert(serverEntity ~= 0 and serverEntity == serverEntity and serverEntity, "This entity should exist.")
-			local _componentChanges = componentChanges
-			local _exp = tostring(serverEntity)
-			local _condition_2 = newState
-			if _condition_2 == nil then
-				_condition_2 = Remove
+			if serverEntity ~= nil then
+				local _componentChanges = componentChanges
+				local _arg0_3 = tostring(serverEntity)
+				local _arg1 = if newState ~= nil then newState else Remove
+				_componentChanges[_arg0_3] = _arg1
 			end
-			_componentChanges[_exp] = _condition_2
 		end
 	end
 	function Covenant:subscribeComponent(component, subscriber)
@@ -474,17 +475,19 @@ do
 		if not self:worldContains(entity) then
 			return nil
 		end
-		local _exp = self.components
-		-- ▼ ReadonlyArray.forEach ▼
-		local _callback = function(c)
-			if self:worldHas(c) then
+		local _exp = self.stringfiedComponents
+		-- ▼ ReadonlySet.forEach ▼
+		local _callback = function(cString)
+			local c = tonumber(cString)
+			if self:worldHas(entity, c) then
+				local lastState = self:worldGet(entity, c)
 				local _stringifiedComponentSubscribers = self.stringifiedComponentSubscribers
 				local _arg0 = tostring(c)
 				local _result = _stringifiedComponentSubscribers[_arg0]
 				if _result ~= nil then
 					-- ▼ ReadonlySet.forEach ▼
 					local _callback_1 = function(subscriber)
-						subscriber(entity, nil, self:worldGet(entity, c))
+						subscriber(entity, nil, lastState, true)
 					end
 					for _v in _result do
 						_callback_1(_v, _v, _result)
@@ -493,10 +496,10 @@ do
 				end
 			end
 		end
-		for _k, _v in _exp do
-			_callback(_v, _k - 1, _exp)
+		for _v in _exp do
+			_callback(_v, _v, _exp)
 		end
-		-- ▲ ReadonlyArray.forEach ▲
+		-- ▲ ReadonlySet.forEach ▲
 		self._world:delete(entity)
 		if RunService:IsServer() then
 			local _worldChangesForReplication = self.worldChangesForReplication
@@ -504,18 +507,21 @@ do
 			_worldChangesForReplication[_arg0] = Delete
 		end
 	end
-	function Covenant:worldComponent()
+	function Covenant:worldComponent(name)
 		self:preventPostStartCall()
 		local c = self._world:component()
-		local _undefinedStringifiedComponents = self.undefinedStringifiedComponents
-		local _arg0 = tostring(c)
-		_undefinedStringifiedComponents[_arg0] = true
-		local _exp = self.components
-		table.insert(_exp, c)
-		if RunService:IsStudio() and self.logging then
-			print(`{(debug.info(2, "sl"))}:{c}`)
-		end
+		local cStr = tostring(c)
+		local _stringfiedComponentsToNameMap = self.stringfiedComponentsToNameMap
+		local _name = name
+		_stringfiedComponentsToNameMap[cStr] = _name
+		self.undefinedStringifiedComponents[cStr] = true
+		self.stringfiedComponents[cStr] = true
 		return c
+	end
+	function Covenant:getComponentName(component)
+		local _stringfiedComponentsToNameMap = self.stringfiedComponentsToNameMap
+		local _arg0 = tostring(component)
+		return _stringfiedComponentsToNameMap[_arg0]
 	end
 	function Covenant:worldTag()
 		self:preventPostStartCall()
@@ -552,6 +558,7 @@ do
 		end
 	end
 	function Covenant:defineComponent(_param)
+		local logging = _param.logging
 		local component = _param.component
 		local queriedComponents = _param.queriedComponents
 		local recipe = _param.recipe
@@ -559,6 +566,11 @@ do
 		local predictionValidator = _param.predictionValidator
 		self:checkComponentDefined(component)
 		self:defineComponentNetworkBehavior(component, replicated, predictionValidator)
+		if logging then
+			local _loggingStringfiedComponents = self.loggingStringfiedComponents
+			local _arg0 = tostring(component)
+			_loggingStringfiedComponents[_arg0] = true
+		end
 		local queryThisComponent = self:worldQuery(component):cached()
 		local willUpdate = true
 		local function indicateUpdate()
@@ -566,9 +578,7 @@ do
 		end
 		local hooks = createHooks({
 			indicateUpdate = indicateUpdate,
-			subscribeComponent = function(component, subscriber)
-				self:subscribeComponent(component, subscriber)
-			end,
+			covenant = self,
 		})
 		-- ▼ ReadonlyArray.map ▼
 		local _newValue = table.create(#queriedComponents)
@@ -668,11 +678,17 @@ do
 		end)
 	end
 	function Covenant:defineIdentity(_param)
+		local logging = _param.logging
 		local identityComponent = _param.identityComponent
 		local replicated = _param.replicated
 		local lifetime = _param.lifetime
 		local factory = _param.factory
 		self:checkComponentDefined(identityComponent)
+		if logging then
+			local _loggingStringfiedComponents = self.loggingStringfiedComponents
+			local _arg0 = tostring(identityComponent)
+			_loggingStringfiedComponents[_arg0] = true
+		end
 		self:defineComponentNetworkBehavior(identityComponent, replicated, false)
 		factory(function(state)
 			local entity = self:worldEntity()

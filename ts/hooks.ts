@@ -1,5 +1,6 @@
 import { Entity } from "@rbxts/jecs";
 import { EventMapWithInstance, EventSetWithInstance } from "./dataStructureWithEvents";
+import { Covenant } from "./covenant";
 
 type AsyncResult<T = unknown> = {
     completed: boolean;
@@ -24,6 +25,7 @@ export interface CovenantHooks {
     useComponentChange: <T extends defined>(
         updateId: number,
         component: Entity<T>,
+        payload: boolean,
     ) => {
         entity: Entity;
         state: T | undefined;
@@ -55,10 +57,7 @@ export interface CovenantHooks {
 
 interface CovenantHooksProps {
     indicateUpdate: () => void;
-    subscribeComponent: <T extends defined>(
-        component: Entity<T>,
-        subscriber: (entity: Entity, state: T | undefined, previousState: T | undefined) => void,
-    ) => void;
+    covenant: Covenant;
 }
 
 function createUseEvent({ indicateUpdate }: CovenantHooksProps): CovenantHooks["useEvent"] {
@@ -82,9 +81,12 @@ function createUseEvent({ indicateUpdate }: CovenantHooksProps): CovenantHooks["
         if (!watchedEvents.has(instance, event)) {
             watchedEvents.add(instance, event);
             queues.set(instance, event, []);
-            event.Connect((...args) => {
+            const connection = event.Connect((...args) => {
                 queues.get(instance, event)!.push(args);
                 indicateUpdate();
+            });
+            instance.Destroying.Once(() => {
+                connection.Disconnect();
             });
             caches.set(instance, event, []);
             return [];
@@ -139,8 +141,8 @@ function createUseEventImmediately({
 }
 
 function createUseComponentChange({
-    subscribeComponent,
-    indicateUpdate: update,
+    covenant,
+    indicateUpdate,
 }: CovenantHooksProps): CovenantHooks["useComponentChange"] {
     const queues: Map<string, { entity: Entity; state: unknown; previousState: unknown }[]> =
         new Map();
@@ -150,6 +152,7 @@ function createUseComponentChange({
     return function <T extends defined>(
         updateId: number,
         component: Entity<T>,
+        payload: boolean = false,
     ): {
         entity: Entity;
         state: T | undefined;
@@ -171,12 +174,24 @@ function createUseComponentChange({
         if (!watchedStringifiedComponents.has(stringifiedComponent)) {
             watchedStringifiedComponents.add(stringifiedComponent);
             queues.set(stringifiedComponent, []);
-            subscribeComponent(component, (entity, state, previousState) => {
+            covenant.subscribeComponent(component, (entity, state, previousState) => {
                 queues.get(stringifiedComponent)!.push({ entity, state, previousState });
-                update();
+                indicateUpdate();
             });
             caches.set(stringifiedComponent, []);
-            return [];
+            if (!payload) {
+                return [];
+            } else {
+                const payloadQueue: {
+                    entity: Entity;
+                    state: T | undefined;
+                    previousState: T | undefined;
+                }[] = [];
+                for (const [entity, state] of covenant.worldQuery(component)) {
+                    payloadQueue.push({ entity, state, previousState: undefined });
+                }
+                return payloadQueue;
+            }
         }
         const queue = queues.get(stringifiedComponent)!;
         if (!queue.isEmpty()) {

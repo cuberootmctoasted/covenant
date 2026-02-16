@@ -4,8 +4,9 @@ import { Remove, Delete } from "./stringEnums";
 export * from "@rbxts/jecs";
 export type WorldChangesForReplication = Map<string, Delete | Map<string, defined | Remove>>;
 export type WorldChangesForPrediction = Map<string, Map<string, defined | Remove>>;
+export type LoggingOption = "FORCE_ON" | "FORCE_OFF" | "COMPONENT_CONTROLLED";
 export interface CovenantProps {
-    logging: boolean;
+    logging: LoggingOption;
     requestPayloadSend: () => void;
     requestPayloadConnect: (callback: (player: Player) => void) => void;
     replicationSend: (player: Player, worldChanges: WorldChangesForReplication) => void;
@@ -14,16 +15,19 @@ export interface CovenantProps {
     predictionSend: (worldChanges: WorldChangesForPrediction) => void;
     predictionConnect: (callback: (player: Player, worldChanges: WorldChangesForPrediction) => void) => void;
 }
+type ComponentSubscriber<T extends defined = defined> = (entity: Entity, state: T | undefined, previousState: T | undefined, isDeleting: boolean) => void;
 type ComponentPredictionValidator = (player: Player, entity: Entity, newState: unknown, lastState: unknown) => boolean;
 export declare class Covenant {
     private _world;
     private systems;
     private worldChangesForReplication;
     private worldChangesForPrediction;
-    private components;
+    private stringfiedComponents;
     private undefinedStringifiedComponents;
     private replicatedStringifiedComponents;
     private predictedStringifiedComponents;
+    private loggingStringfiedComponents;
+    private stringfiedComponentsToNameMap;
     private started;
     private stringifiedComponentSubscribers;
     private stringifiedComponentValidators;
@@ -39,9 +43,7 @@ export declare class Covenant {
     constructor({ logging, requestPayloadSend, requestPayloadConnect, replicationSend, replicationConnect, replicationSendAll, predictionSend, predictionConnect, }: CovenantProps);
     getClientEntity(entity: Entity): Entity | undefined;
     getServerEntity(entity: Entity): Entity | undefined;
-    private logging;
-    enableLogging(): void;
-    disableLogging(): void;
+    private loggingOption;
     private setupPredictionClient;
     private forEachComponentChanges;
     private setupPredictionServer;
@@ -54,20 +56,23 @@ export declare class Covenant {
     private preventPostStartCall;
     private schedule;
     private worldSet;
-    subscribeComponent<T>(component: Entity<T>, subscriber: (entity: Entity, state: T | undefined, previousState: T | undefined) => void): () => void;
+    subscribeComponent<T extends defined>(component: Entity<T>, subscriber: ComponentSubscriber<T>): () => void;
     private worldDelete;
-    worldComponent<T extends defined>(): Entity<T>;
+    worldComponent<T extends defined>(name: string): Entity<T>;
+    getComponentName(component: Entity): string;
     worldTag(): Entity<undefined>;
     private checkComponentDefined;
     private defineComponentNetworkBehavior;
-    defineComponent<T extends defined>({ component, queriedComponents, recipe, replicated, predictionValidator, }: {
+    defineComponent<T extends defined>({ logging, component, queriedComponents, recipe, replicated, predictionValidator, }: {
+        logging?: true;
         replicated: boolean;
         predictionValidator: ComponentPredictionValidator | false;
         component: Entity<T>;
         queriedComponents: Entity[][];
         recipe: (entity: Entity, lastState: T | undefined, updateId: number, hooks: CovenantHooks) => T | undefined;
     }): void;
-    defineIdentity<T extends defined>({ identityComponent, replicated, lifetime, factory, }: {
+    defineIdentity<T extends defined>({ logging, identityComponent, replicated, lifetime, factory, }: {
+        logging?: true;
         identityComponent: Entity<T>;
         replicated: boolean;
         lifetime: (entity: Entity, state: T, despawn: () => void) => (() => void) | undefined;

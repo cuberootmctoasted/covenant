@@ -22,12 +22,15 @@ local function createUseEvent(_param)
 		if not watchedEvents:has(instance, event) then
 			watchedEvents:add(instance, event)
 			queues:set(instance, event, {})
-			event:Connect(function(...)
+			local connection = event:Connect(function(...)
 				local args = { ... }
 				local _exp = queues:get(instance, event)
 				local _args = args
 				table.insert(_exp, _args)
 				indicateUpdate()
+			end)
+			instance.Destroying:Once(function()
+				connection:Disconnect()
 			end)
 			caches:set(instance, event, {})
 			return {}
@@ -77,13 +80,16 @@ local function createUseEventImmediately(_param)
 	end
 end
 local function createUseComponentChange(_param)
-	local subscribeComponent = _param.subscribeComponent
-	local update = _param.indicateUpdate
+	local covenant = _param.covenant
+	local indicateUpdate = _param.indicateUpdate
 	local queues = {}
 	local watchedStringifiedComponents = {}
 	local caches = {}
 	local lastUpdateId = -1
-	return function(updateId, component)
+	return function(updateId, component, payload)
+		if payload == nil then
+			payload = false
+		end
 		if lastUpdateId ~= updateId then
 			table.clear(caches)
 			lastUpdateId = updateId
@@ -96,7 +102,7 @@ local function createUseComponentChange(_param)
 		if not (watchedStringifiedComponents[stringifiedComponent] ~= nil) then
 			watchedStringifiedComponents[stringifiedComponent] = true
 			queues[stringifiedComponent] = {}
-			subscribeComponent(component, function(entity, state, previousState)
+			covenant:subscribeComponent(component, function(entity, state, previousState)
 				local _exp = queues[stringifiedComponent]
 				local _arg0 = {
 					entity = entity,
@@ -104,10 +110,23 @@ local function createUseComponentChange(_param)
 					previousState = previousState,
 				}
 				table.insert(_exp, _arg0)
-				update()
+				indicateUpdate()
 			end)
 			caches[stringifiedComponent] = {}
-			return {}
+			if not payload then
+				return {}
+			else
+				local payloadQueue = {}
+				for entity, state in covenant:worldQuery(component) do
+					local _arg0 = {
+						entity = entity,
+						state = state,
+						previousState = nil,
+					}
+					table.insert(payloadQueue, _arg0)
+				end
+				return payloadQueue
+			end
 		end
 		local queue = queues[stringifiedComponent]
 		if not (#queue == 0) then
